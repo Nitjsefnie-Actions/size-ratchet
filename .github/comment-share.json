@@ -44,24 +44,28 @@
     2863
   ],
   ".github/workflows/tests.yml": [
-    9931,
-    16354
+    9968,
+    16366
   ],
   "run.py": [
-    661,
-    2389
+    675,
+    2369
   ],
   "scripts/ci/aggregate_gate.py": [
     426,
     1270
   ],
+  "scripts/ci/config.py": [
+    1064,
+    4263
+  ],
   "scripts/ci/records.py": [
-    2441,
-    8106
+    2611,
+    8405
   ],
   "scripts/ci/size_baseline.py": [
-    2576,
-    12969
+    2583,
+    10458
   ],
   "tests/commit_scopes.py": [
     6966,
@@ -73,10 +77,14 @@
   ],
   "tests/helpers.py": [
     313,
-    1684
+    1724
   ],
   "tests/run.sh": [
     18,
     79
+  ],
+  "tests/test_action.py": [
+    427,
+    2711
   ]
 }
