@@ -17,6 +17,8 @@ from pathlib import Path
 
 ACTION_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ACTION_ROOT / 'scripts' / 'ci'))
+import config
+import records
 import size_baseline as policy
 
 
@@ -33,9 +35,6 @@ def resolve_mode(requested):
     """
     if requested in ('check', 'tighten'):
         return requested
-    if requested != 'auto':
-        raise ValueError(f'input mode must be auto, check or tighten, '
-                         f'got {requested!r}')
     event = os.environ.get('GITHUB_EVENT_NAME', '')
     default = env('DEFAULT_BRANCH', '')
     if event == 'pull_request':
@@ -47,16 +46,8 @@ def resolve_mode(requested):
                      f'on ref {os.environ.get("GITHUB_REF", "")!r}')
 
 
-def require_tight_input(text):
-    """The boolean input accepts exactly 'true' or 'false'."""
-    if text not in ('true', 'false'):
-        raise ValueError(f'input require-tight must be true or false, '
-                         f'got {text!r}')
-    return text == 'true'
-
-
 def build_policy():
-    return policy.Policy(
+    return config.Policy(
         ceilings_text=env('CEILINGS', ''),
         overrides_text=env('OVERRIDES', ''),
         exclude_text=env('EXCLUDE', ''),
@@ -67,24 +58,21 @@ def build_policy():
 def main() -> int:
     try:
         root = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd())).resolve()
-        requested = env('MODE', 'auto')
+        # Every input is judged before anything else, so the validate-only
+        # pass refuses a bad value up front. The event context is the
+        # caller's, and a manual run has none, so auto's dispatch waits.
+        requested = config.choice('mode', env('MODE', 'auto'), config.MODES)
+        stale = config.choice('stale', env('STALE', 'warn'), config.STALE)
+        require_tight = config.require_tight_input(env('REQUIRE_TIGHT', 'false'))
+        records_path = env('RECORDS', '.github/size-baseline.json')
+        records.validate_path(root, records_path)
         policy_out = build_policy()
         if sys.argv[1:] == ['--validate-only']:
-            # The validate-only pass judges the inputs alone: the event
-            # context is the caller's, and a manual run has none.
             return 0
         mode = resolve_mode(requested)
         base = env('BASE_REF', '') if mode == 'check' else ''
-        return policy.run(
-            root,
-            env('RECORDS', '.github/size-baseline.json'),
-            env('MEMBER', ''),
-            mode,
-            base,
-            policy_out,
-            env('STALE', 'warn'),
-            require_tight_input(env('REQUIRE_TIGHT', 'false')),
-        )
+        return policy.run(root, records_path, env('MEMBER', ''), mode, base,
+                          policy_out, stale, require_tight)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'size-ratchet failed: {error}', file=sys.stderr)
         return 2

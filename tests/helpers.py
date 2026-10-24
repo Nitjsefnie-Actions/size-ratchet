@@ -50,7 +50,7 @@ def head(repo):
     return git(repo, 'rev-parse', 'HEAD').strip()
 
 
-def run_gate(repo, mode, base_ref=None, **inputs):
+def run_gate(repo, mode, base_ref=None, extra_env=None, **inputs):
     """Run run.py as the composite action does: env data, python -I.
 
     The subprocess inherits the runner's environment: the CI coverage hook
@@ -64,6 +64,7 @@ def run_gate(repo, mode, base_ref=None, **inputs):
         env['SIZE_RATCHET_BASE_REF'] = base_ref
     for name, value in inputs.items():
         env['SIZE_RATCHET_' + name.upper()] = value
+    env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, '-I', str(ACTION_ROOT / 'run.py')],
         env=env, capture_output=True, text=True, timeout=120)
