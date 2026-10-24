@@ -34,6 +34,9 @@ def main() -> int:
         if result != 'success':
             failed.append((name, result))
     if failed:
+        # stdout is block-buffered under a runner; flush the table first so
+        # the log reads in order.
+        sys.stdout.flush()
         print('aggregate: the gate is red:', file=sys.stderr)
         for name, result in failed:
             print(f'  {name}: {result}', file=sys.stderr)
