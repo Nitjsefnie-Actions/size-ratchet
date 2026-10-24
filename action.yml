@@ -1,0 +1,89 @@
+name: Size ratchet
+description: >-
+  Gate tracked file line counts with a per-type, per-folder ratchet that
+  only tightens.
+inputs:
+  ceilings:
+    description: >-
+      Multiline `"<type>: <ceiling>"` lines replacing a type's default.
+      Types: source, stylesheet, sql, yaml.
+    required: false
+    default: ''
+  overrides:
+    description: >-
+      Multiline `"<folder>/: <ceiling>"` lines; the longest matching
+      repository-relative folder prefix wins. Never applies to an untyped
+      file.
+    required: false
+    default: ''
+  exclude:
+    description: >-
+      Multiline list of exact paths or `<folder>/` prefixes removed from
+      measurement.
+    required: false
+    default: ''
+  unclassified:
+    description: >-
+      ignore (default) or fail: under fail, a measurable file with no
+      ceiling, no record and no exclusion fails the run.
+    required: false
+    default: 'ignore'
+  records:
+    description: Repository-relative JSON records file.
+    required: false
+    default: '.github/size-baseline.json'
+  member:
+    description: >-
+      Top-level key of the records file holding the baseline map, instead
+      of "baseline". Every other key is preserved byte-for-byte on write.
+    required: false
+    default: ''
+  mode:
+    description: >-
+      auto checks pull requests and tightens pushes to the default branch;
+      check or tighten forces one. Other events fail closed.
+    required: false
+    default: 'auto'
+  base-ref:
+    description: Git revision whose records bind a check.
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  stale:
+    description: >-
+      warn (default) reports a stale record (shrunk, deleted, excluded or
+      graduated) as a notice; fail fails the run on one.
+    required: false
+    default: 'warn'
+  require-tight:
+    description: >-
+      true also fails a check whose records differ from what tighten would
+      write over the head tree.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.13.14'
+    - name: Measure and apply the ratchet
+      shell: bash
+      # Inputs are data: none becomes shell program text. -I keeps consumer
+      # modules and PYTHONPATH out of Python's import search path. The
+      # runner imports the standard library and this action's own modules
+      # only, so there is no dependency to pin and no install step.
+      env:
+        SIZE_RATCHET_CEILINGS: ${{ inputs.ceilings }}
+        SIZE_RATCHET_OVERRIDES: ${{ inputs.overrides }}
+        SIZE_RATCHET_EXCLUDE: ${{ inputs.exclude }}
+        SIZE_RATCHET_UNCLASSIFIED: ${{ inputs.unclassified }}
+        SIZE_RATCHET_RECORDS: ${{ inputs.records }}
+        SIZE_RATCHET_MEMBER: ${{ inputs.member }}
+        SIZE_RATCHET_MODE: ${{ inputs.mode }}
+        SIZE_RATCHET_BASE_REF: ${{ inputs.base-ref }}
+        SIZE_RATCHET_STALE: ${{ inputs.stale }}
+        SIZE_RATCHET_REQUIRE_TIGHT: ${{ inputs.require-tight }}
+        SIZE_RATCHET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        python3 -I "$GITHUB_ACTION_PATH/run.py" --validate-only
+        python3 -I "$GITHUB_ACTION_PATH/run.py"
