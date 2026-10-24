@@ -52,10 +52,10 @@ jobs:
 
     strategy:
       # One entry per language CodeQL analyses here: `actions` for the action
-      # itself, `python` for claim.py, the program that parses the untrusted
-      # comment body. matrix.language feeds the job name, the init step's
-      # `languages:`, and the analyze step's `category:`, so each entry lands
-      # as its own check; tests/run.sh pins all three.
+      # and the workflows, `python` for run.py and scripts/ci/*.py, the
+      # programs that read a consumer's tree, records file and inputs.
+      # matrix.language feeds the job name, the init step's `languages:`, and
+      # the analyze step's `category:`, so each entry lands as its own check.
       fail-fast: false
       matrix:
         include:
@@ -77,10 +77,11 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          # `security-extended` over the default `security` pack: claim.py
-          # parses the untrusted comment body and writes to issues with an
-          # issue-writing token, so the additional security queries belong in
-          # the advisory analysis of every language this matrix names.
+          # `security-extended` over the default `security` pack: run.py and
+          # scripts/ci/*.py parse consumer-controlled input (the measured
+          # tree, the records file, the multiline inputs), so the additional
+          # security queries belong in the advisory analysis of every language
+          # this matrix names.
           queries: security-extended
 
       - name: Analyze

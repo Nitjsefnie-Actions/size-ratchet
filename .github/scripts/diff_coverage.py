@@ -185,7 +185,7 @@ def _analyzer():
     this reporter reads no coverage data: it asks the analyzer which lines are
     executable statements and borrows the repository config's omit patterns. So
     it is given `data_file=None`, coverage.py's no-disk data, and no open can
-    collide with the file the measuring collector already holds (issue 1471).
+    collide with the file the measuring collector already holds.
     That is all it buys: `_init_data` still runs `ensure_dir_for_file` on the
     configured path before it consults `_no_disk`, so a named path under
     directories that do not exist has those created.
@@ -343,9 +343,8 @@ def main():
     # Replacement, not refusal: the diff is git-generated, and the workflow
     # diffs with --text, so a tracked file's bytes are rendered here
     # verbatim -- a byte git renders is not garbage this reporter may
-    # refuse, and one unreadable line in an unrelated file must not fail a
-    # legitimate tree's report (the branch-debt fixture round shipped a
-    # fixture with raw non-UTF-8 bytes and the live run red: 37100400229).
+    # refuse, and one unreadable line in an unrelated file (a fixture with
+    # raw non-UTF-8 bytes) must not fail a legitimate tree's report.
     # Nothing but line numbers crosses into the report, and counting is
     # byte-independent, so replacement characters in unreadable content
     # cannot move the number. The quoted-path decode below stays strict and
