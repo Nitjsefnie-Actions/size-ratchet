@@ -15,8 +15,7 @@ into the type-and-folder policy below.
 Save this workflow as `.github/workflows/size-baseline.yml`. Change `main`
 to your default branch. The action reference is consumed by commit SHA — a
 tag is a moving pointer — so pin the release's commit and keep the `#
-vX.Y.Z` comment beside it. No release exists yet: the `@<release-sha> #
-vX.Y.Z` reference below is a placeholder until the first one is cut.
+vX.Y.Z` comment beside it, as the block below does for the latest release.
 
 ```yaml
 name: size baseline
@@ -39,7 +38,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/size-ratchet@<release-sha> # vX.Y.Z
+      - uses: Nitjsefnie-Actions/size-ratchet@678a43a67e0a6fd97de1d5db3c12eaffbf4cf32a # v1.0.0
         with:
           ceilings: ''
           overrides: ''
