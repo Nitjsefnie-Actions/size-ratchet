@@ -1,0 +1,18 @@
+# The dependency-advisory gate, pip-audit, installed by
+# .github/workflows/audit.yml — which then audits this file's tree along with
+# the rest of the manifests.
+#
+# Why a manifest file when the install is one step in a workflow: Dependabot's
+# pip ecosystem (the pip entry in .github/dependabot.yml, directory
+# /.github/workflows) reads manifest files, never the pins inside a workflow
+# `run:` block, so an inline `pip-audit==X` in audit.yml could only go stale
+# unnoticed. Here the pin joins the manifests the weekly Dependabot pass
+# already watches.
+#
+# Why deliberately NOT hash-pinned, unlike requirements.txt beside it
+# (zizmor and PyYAML, installed with --require-hashes by actionlint.yml):
+# pip-audit needs its own runtime dependencies, so hash-pinning it would pin
+# its whole transitive tree — and the fresh transitives are exactly the
+# subject this gate audits. Recorded trade-off: a transitive release can turn
+# this gate red on an unchanged commit; that is the gate working, not a flake.
+pip-audit==2.10.1

@@ -1,0 +1,160 @@
+name: actionlint
+
+# The gate on the gates. Everything else in .github/workflows is unreviewed
+# code that runs with a repository token, and a mistake in it fails in ways
+# the other gates structurally cannot catch: a workflow with a typo in an
+# `if:` expression does not go red, it silently stops running.
+#
+# Two tools, because they answer different questions:
+#
+#   actionlint — is this workflow WELL-FORMED? Schema, expression syntax,
+#   context availability (`github.event.review` on a push event),
+#   `runs-on` labels, and shellcheck over every `run:` block, which is where
+#   most real bugs live. It found `for i in $(seq 1 30)` with an unused `i`
+#   in tests.yml on its first run here.
+#
+#   zizmor — is this workflow SAFE? Script injection through `${{ }}` in a
+#   `run:` block, over-broad `permissions:`, credential persistence after
+#   checkout, unpinned action references. Its first run flagged 39 findings,
+#   14 of them high: every action was tag-pinned rather than hash-pinned,
+#   every checkout left the job token in .git/config, and no workflow
+#   declared permissions at all.
+#
+# Both tools are pinned by hash, not version alone: actionlint is verified
+# against its release checksum before it runs, and zizmor installs through
+# the hash-pinned requirements.txt beside this workflow, because a linter
+# that runs before every other gate is a supply-chain position worth
+# defending.
+#
+# Suppressions belong at the offending line as a `# zizmor: ignore[rule]`
+# comment WITH a justification, never as a raised
+# --min-severity here: a threshold silences the next finding too, and the
+# next one is the one nobody has thought about yet.
+
+on:
+  push:
+    # Default branch only: a pull-request head already gets one run from
+    # the `pull_request` event below, and an unfiltered `push` schedules
+    # the same commit a second time under a different ref, which the
+    # `concurrency` group cannot collapse.
+    branches: [main]
+    # Deny-list, not an allow-list: under an allow-list, a new path this gate
+    # should read silently stops triggering it. The job reads README.md and
+    # .github/workflows/claim.yml for the pin-sync check, every
+    # .github/workflows/*.yml, .github/workflows/requirements.txt (the
+    # hash-pinned zizmor install), and action.yml (linted and zizmor-audited
+    # via the generated workflow), so none of those belongs in a skip list.
+    # The four names below are documentation nothing in this job reads.
+    # README.md is deliberately ABSENT: the pin-sync step reads it, so a
+    # README-only push to main must run this gate.
+    paths-ignore: [CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
+  # Deliberately unfiltered by path. This job is a REQUIRED status check on
+  # main, and GitHub never reports a required check whose workflow did not
+  # run -- it waits for it forever. A path filter here therefore does not
+  # skip the check on a documentation-only pull request, it blocks that pull
+  # request from ever merging. The job is seconds long, so running it on
+  # every pull request is cheaper than the failure mode it removes.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Fork release, not stock rhysd/actionlint: upstream v1.7.12 plus
+      # rhysd/actionlint#654, which adds GitHub's documented `queue` key
+      # under `concurrency` (single|max). Stock 1.7.12 is the latest
+      # upstream release and false-reds the `queue: max` this repository
+      # recommends in its README Install block and brings to its own
+      # claim.yml (repo issue #52; upstream informed via #657). Return to
+      # rhysd's own release once it ships the key.
+      SIZE_RATCHET_ACTIONLINT_VERSION: 1.7.12-queue.1
+      SIZE_RATCHET_ACTIONLINT_REPO: Nitjsefnie-OSC/actionlint
+      # sha256 of actionlint_1.7.12-queue.1_linux_amd64.tar.gz, from the
+      # release's own checksums file. Bump both together.
+      SIZE_RATCHET_ACTIONLINT_SHA256: dcc2c42a7caaa197dfe63584a3851f62ef260f80b2cf221baaf05479661e1521
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install actionlint
+        # Downloaded and checksum-verified rather than piped from the
+        # install script: `curl | bash` would make this job trust whatever
+        # that URL serves at run time.
+        run: |
+          tarball="actionlint_${SIZE_RATCHET_ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 -o "$tarball" \
+            "https://github.com/${SIZE_RATCHET_ACTIONLINT_REPO}/releases/download/v${SIZE_RATCHET_ACTIONLINT_VERSION}/${tarball}"
+          echo "${SIZE_RATCHET_ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" actionlint
+          ./actionlint --version
+
+      - name: Install zizmor
+        id: install_zizmor
+        # --require-hashes verifies every artifact against the sha256 in
+        # requirements.txt: a version pin alone still installs whatever
+        # artifact the index serves for that version. The `--upgrade pip`
+        # line is gone for the same reason -- it installed whatever bytes
+        # the index served, unpinned, and the runner's preinstalled pip is
+        # far newer than --require-hashes needs.
+        run: |
+          python3 -m pip install --require-hashes -r .github/workflows/requirements.txt
+
+      - name: actionlint
+        id: actionlint
+        # actionlint accepts workflows, not a composite action as a top-level
+        # file. The local uses step checks action metadata; the copied steps
+        # expose its expressions and shell blocks to the same checks as CI.
+        # This generated workflow is lint input only and is never executed.
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import yaml
+
+          action = yaml.safe_load(Path("action.yml").read_text())
+          assert action["runs"]["using"] == "composite"
+          inputs = {
+              name: {"description": spec["description"], "type": "string"}
+              for name, spec in action.get("inputs", {}).items()
+          }
+          workflow = {
+              "on": {"workflow_dispatch": {"inputs": inputs}},
+              "permissions": {},
+              "jobs": {"action": {
+                  "runs-on": "ubuntu-latest",
+                  "steps": [{"uses": "./"}] + action["runs"]["steps"],
+              }},
+          }
+          target = Path(os.environ["RUNNER_TEMP"]) / "size-ratchet-action-workflow.yml"
+          target.write_text(yaml.safe_dump(workflow, sort_keys=False))
+          PYTHON
+          ./actionlint -color .github/workflows/*.yml "$RUNNER_TEMP/size-ratchet-action-workflow.yml"
+
+      - name: zizmor
+        # Runs even when actionlint is red, so one push reports both gates —
+        # without hiding either tool's verdict. Not when the install
+        # itself failed, which would report a tool bug as a
+        # clean audit.
+        if: ${{ !cancelled() && steps.install_zizmor.outcome == 'success' }}
+        env:
+          # Enables the online audits (resolving action refs, checking for
+          # known-vulnerable action versions). Read-only, and this workflow
+          # declares contents: read.
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --no-progress .github/workflows/ action.yml

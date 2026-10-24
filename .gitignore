@@ -29,6 +29,7 @@ tests/*
 .github/ISSUE_TEMPLATE/*
 !.github/ISSUE_TEMPLATE/issue.md
 !.github/size-baseline.json
+!.github/comment-share.json
 !.github/ci-thresholds.json
 !.github/scripts/
 .github/scripts/*

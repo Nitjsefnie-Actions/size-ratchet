@@ -1,0 +1,89 @@
+name: codeql
+
+# Static security analysis (advanced setup, not the repo-settings "default
+# setup" — the config lives here so it is reviewable in a diff like every
+# other gate). Free on this public repository; findings land in the
+# Security tab rather than turning the build red, so a new query shipping
+# upstream cannot block an unrelated push.
+#
+# Push and the weekly cron analyse the event's own commit, so SARIF is
+# uploaded against exactly the tree that was checked out.
+#
+# The weekly cron is not redundant with push: CodeQL's query packs are
+# updated continuously, and a new query only ever runs against code that
+# has changed since it shipped. Without the cron, a rule published today
+# would never be applied to a file last touched last year.
+
+on:
+  # Every branch, not just main. Scorecard's SAST check asks whether the
+  # commits that reached main were analysed BEFORE they got there, and a
+  # main-only filter means the answer is never. Deliberately not a
+  # pull_request trigger: `analyze` uploads its SARIF against the ref and sha
+  # of the triggering event while the checkout takes the pull request head, so
+  # on a review event the alerts would describe a tree that was never scanned.
+  push:
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '.gitignore'
+  schedule:
+    # Wednesday 03:47 UTC. Off the hour and off Monday deliberately: the top
+    # of the hour is when every cron on GitHub fires at once and jobs queue.
+    - cron: '47 3 * * 3'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.event_name == 'push' && format('{0}-{1}', github.ref, github.sha) || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      # Writing the analysis results is the whole point; everything else
+      # stays read-only.
+      security-events: write
+      contents: read
+
+    strategy:
+      # One entry per language CodeQL analyses here: `actions` for the action
+      # itself, `python` for claim.py, the program that parses the untrusted
+      # comment body. matrix.language feeds the job name, the init step's
+      # `languages:`, and the analyze step's `category:`, so each entry lands
+      # as its own check; tests/run.sh pins all three.
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No `ref:` override here: CodeQL must analyse
+          # exactly the commit it will file alerts against, which is the
+          # event's own SHA.
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # `security-extended` over the default `security` pack: claim.py
+          # parses the untrusted comment body and writes to issues with an
+          # issue-writing token, so the additional security queries belong in
+          # the advisory analysis of every language this matrix names.
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:${{ matrix.language }}
