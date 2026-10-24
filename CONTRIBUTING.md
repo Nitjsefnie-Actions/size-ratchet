@@ -55,7 +55,7 @@ check `git status --porcelain` is clean with every shipped file tracked.
 
 ## Getting it running
 
-Python 3.13 and Git; nothing else. The action's runner imports the
+Python 3.13, Git, bash and ShellCheck. The action's runner imports the
 standard library alone, and the suite installs its pinned toolchain into a
 venv from the hash-pinned manifest:
 
