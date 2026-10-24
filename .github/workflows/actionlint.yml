@@ -10,15 +10,11 @@ name: actionlint
 #   actionlint — is this workflow WELL-FORMED? Schema, expression syntax,
 #   context availability (`github.event.review` on a push event),
 #   `runs-on` labels, and shellcheck over every `run:` block, which is where
-#   most real bugs live. It found `for i in $(seq 1 30)` with an unused `i`
-#   in tests.yml on its first run here.
+#   most real bugs live.
 #
 #   zizmor — is this workflow SAFE? Script injection through `${{ }}` in a
 #   `run:` block, over-broad `permissions:`, credential persistence after
-#   checkout, unpinned action references. Its first run flagged 39 findings,
-#   14 of them high: every action was tag-pinned rather than hash-pinned,
-#   every checkout left the job token in .git/config, and no workflow
-#   declared permissions at all.
+#   checkout, unpinned action references.
 #
 # Both tools are pinned by hash, not version alone: actionlint is verified
 # against its release checksum before it runs, and zizmor installs through
@@ -39,15 +35,12 @@ on:
     # `concurrency` group cannot collapse.
     branches: [main]
     # Deny-list, not an allow-list: under an allow-list, a new path this gate
-    # should read silently stops triggering it. The job reads README.md and
-    # .github/workflows/claim.yml for the pin-sync check, every
+    # should read silently stops triggering it. The job reads every
     # .github/workflows/*.yml, .github/workflows/requirements.txt (the
     # hash-pinned zizmor install), and action.yml (linted and zizmor-audited
     # via the generated workflow), so none of those belongs in a skip list.
-    # The four names below are documentation nothing in this job reads.
-    # README.md is deliberately ABSENT: the pin-sync step reads it, so a
-    # README-only push to main must run this gate.
-    paths-ignore: [CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
+    # The five names below are documentation nothing in this job reads.
+    paths-ignore: [README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
   # Deliberately unfiltered by path. This job is a REQUIRED status check on
   # main, and GitHub never reports a required check whose workflow did not
   # run -- it waits for it forever. A path filter here therefore does not
@@ -73,10 +66,10 @@ jobs:
       # Fork release, not stock rhysd/actionlint: upstream v1.7.12 plus
       # rhysd/actionlint#654, which adds GitHub's documented `queue` key
       # under `concurrency` (single|max). Stock 1.7.12 is the latest
-      # upstream release and false-reds the `queue: max` this repository
-      # recommends in its README Install block and brings to its own
-      # claim.yml (repo issue #52; upstream informed via #657). Return to
-      # rhysd's own release once it ships the key.
+      # upstream release and false-reds the `queue: max` this repository's
+      # .github/workflows/claim.yml carries (Nitjsefnie-Actions/claim#52;
+      # upstream rhysd/actionlint#657). Return to rhysd's own release once it
+      # ships the key.
       SIZE_RATCHET_ACTIONLINT_VERSION: 1.7.12-queue.1
       SIZE_RATCHET_ACTIONLINT_REPO: Nitjsefnie-OSC/actionlint
       # sha256 of actionlint_1.7.12-queue.1_linux_amd64.tar.gz, from the

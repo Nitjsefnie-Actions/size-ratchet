@@ -1,6 +1,6 @@
 name: ratchet push
 
-# The data-only push half of the comment ratchet. The gate executes proposed
+# The data-only push half of the size ratchet. The gate executes proposed
 # code and stays keyless. The push lives HERE, a top-level workflow where
 # environment: main-push resolves, keyed on the tests run's completion.
 #

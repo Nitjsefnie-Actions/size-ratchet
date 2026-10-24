@@ -41,14 +41,14 @@ a narrower gate looks the same as a correct one:
   - What a gate script reaches from inside itself, past the `run:` block.
 
 Runs on the standard library alone. The workflows are read with a parser for
-the block layout this repository uses rather than a YAML dependency, for the
-reason action_contract gives: nothing installs one here, and a parser that
-refuses a shape it does not model is better than a silent misreading.
+the block layout this repository uses rather than a YAML dependency: the
+shellcheck job that runs this installs nothing, and a parser that refuses a
+shape it does not model is better than a silent misreading.
 
     tests/gate_base_freshness.py [--root DIR] [--print-paths]
 
---print-paths writes the derived set, one path per line, and is how the suite
-pins the derivation.
+--print-paths writes the derived set, one path per line, for a reader who
+wants to see what the derivation found.
 """
 
 import re
@@ -358,8 +358,8 @@ def resolve(candidate, files):
     Resolution against the tree IS the filter: a token that names nothing here
     is not a path this check needs to watch, and a token that names a file or a
     directory is one. There is no shape rule on top of that, because a shape
-    rule is a second remembered list — it is what left `tests/identity.response`
-    out of a hand-written enumeration in the first place.
+    rule is a second remembered list, and a remembered list drops the next
+    file nobody thought to add to it.
 
     There is no glob arm, and its absence is deliberate: `candidates()` cannot
     produce a glob metacharacter, so an arm reading one would be a branch that
