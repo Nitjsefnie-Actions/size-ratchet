@@ -19,10 +19,6 @@
     1822,
     2723
   ],
-  ".github/workflows/comment-share.yml": [
-    237,
-    841
-  ],
   ".github/workflows/coverage-comment.yml": [
     3309,
     9951
@@ -32,8 +28,8 @@
     1113
   ],
   ".github/workflows/ratchet-push.yml": [
-    2466,
-    6985
+    3434,
+    9514
   ],
   ".github/workflows/scorecard.yml": [
     593,
