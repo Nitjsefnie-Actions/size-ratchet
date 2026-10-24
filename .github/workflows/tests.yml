@@ -10,7 +10,8 @@ name: tests
 # The action itself imports the standard library and nothing else; the
 # suite does not. It needs pytest and PyYAML, and the measured cell needs
 # coverage, all installed from the hash-pinned requirements-test.txt into
-# a venv (see the Install the regression toolchain step).
+# the interpreter actions/setup-python provides (see the Install the
+# regression toolchain step).
 #
 # The same measurement is also reported per change: the measured cell
 # writes the XML form of it, the pull-request-only `diff-coverage` job
@@ -187,24 +188,25 @@ jobs:
         run: python3 -m py_compile run.py scripts/ci/size_baseline.py scripts/ci/records.py scripts/ci/aggregate_gate.py
 
       - name: Install the regression toolchain
-        # Why the venv: both hosted images mark their system python
-        # externally managed (PEP 668), so a plain pip install fails.
-        # --require-hashes pins artifacts as well as versions, and
-        # --only-binary keeps an absent wheel a loud failure rather than an
-        # unpinned source build. The venv goes first on PATH through
-        # GITHUB_ENV, so tests/run.sh and the coverage commands below resolve
-        # its python3.
+        # Into setup-python's interpreter, the one every later step's
+        # `python3` resolves to: the runner places GITHUB_PATH entries --
+        # setup-python's among them -- ahead of the job's PATH variable when
+        # it builds a step's environment, so a venv put on PATH through
+        # GITHUB_ENV is shadowed by it. That interpreter is a toolcache
+        # install, not the image's externally managed (PEP 668) system
+        # python, so pip may install into it. --require-hashes pins
+        # artifacts as well as versions, and --only-binary keeps an absent
+        # wheel a loud failure rather than an unpinned source build.
         run: |
-          python3 -m venv "$RUNNER_TEMP/suite-venv"
-          "$RUNNER_TEMP/suite-venv/bin/python" -m pip install --require-hashes --only-binary=:all: -r requirements-test.txt
-          echo "PATH=$RUNNER_TEMP/suite-venv/bin:$PATH" >> "$GITHUB_ENV"
+          python3 -m pip install --require-hashes --only-binary=:all: -r requirements-test.txt
 
-      # The measured cell writes coverage's startup hook into the suite venv
-      # and arms the two env vars the rest of the job inherits through
-      # GITHUB_ENV. run.py runs as a SUBPROCESS of the suite, so `coverage
-      # run` around pytest would measure none of it: the hook starts the
-      # measurer inside every python3 the suite starts. On the other cell
-      # the step is skipped and the suite runs unmeasured.
+      # The measured cell writes coverage's startup hook into the site
+      # directory of that same interpreter, the one the suite and its
+      # subprocesses run, and arms the two env vars the rest of the job
+      # inherits through GITHUB_ENV. run.py runs as a SUBPROCESS of the
+      # suite, so `coverage run` around pytest would measure none of it: the
+      # hook starts the measurer inside every python3 the suite starts. On
+      # the other cell the step is skipped and the suite runs unmeasured.
       - name: Install the coverage hook
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -306,12 +308,15 @@ jobs:
       # requirements-test.txt into a venv. No startup hook and no
       # COVERAGE_PROCESS_START here -- no suite runs in this job, so there is
       # nothing to measure, only a report to read.
+      # The venv's bin goes on PATH through GITHUB_PATH, which the runner
+      # puts ahead of every other PATH entry for the later steps; a
+      # GITHUB_ENV `PATH=` write would sit behind any GITHUB_PATH entry.
       - name: Install coverage tooling
         run: |
           python3 -m venv "$RUNNER_TEMP/coverage-venv"
           awk '/^coverage==/{f=1} f{print; if ($0 !~ /\\$/) exit}' requirements-test.txt > "$RUNNER_TEMP/coverage.txt"
           "$RUNNER_TEMP/coverage-venv/bin/python" -m pip install --require-hashes -r "$RUNNER_TEMP/coverage.txt"
-          echo "PATH=$RUNNER_TEMP/coverage-venv/bin:$PATH" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/coverage-venv/bin" >> "$GITHUB_PATH"
 
       - name: Measure the coverage of this change
         # HEAD is the merge tree checked out above and HEAD^1 is, by
