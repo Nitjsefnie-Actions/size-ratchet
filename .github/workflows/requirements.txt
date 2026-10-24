@@ -1,0 +1,45 @@
+# Hash-pinned requirements for the CI installs, all --require-hashes:
+# the "Install zizmor" step in actionlint.yml installs the whole file.
+# A version pin alone still installs whatever artifact the index serves
+# for that version; these sha256 hashes make the install the same bytes
+# on every run.
+#
+# What the hashes have to cover is the wheel each consumer's runner
+# resolves: actionlint.yml's ubuntu-latest runner takes x86_64 glibc,
+# CPython 3.13. zizmor declares no runtime dependencies, so PyYAML is
+# the whole transitive closure. Every block lists every artifact its
+# closure ships, so it resolves on whichever platform lifts it.
+#
+# The `pip` entry in .github/dependabot.yml watches this directory, so a
+# version bump arrives as a pull request with the --hash lines rewritten
+# beside it, and the set it writes is every artifact the release ships
+# rather than that one platform's. With `--require-hashes` that superset
+# is accepted and the runner's wheel is matched out of it. If Dependabot
+# cannot resolve the new version's hashes the update opens no pull
+# request and the pin stays where it is, so the procedure below is the
+# fallback. To regenerate the hashes for this platform by hand instead
+# of copying them from a release page --
+#
+#   python3 -m pip download -d /tmp/req-dl zizmor==<new> PyYAML==<new>
+#   sha256sum /tmp/req-dl/*
+#
+# then rewrite the --hash lines from that output. If a bump introduces a
+# new transitive dependency, add a requirement line for it too:
+# hash-checking mode still resolves dependencies and refuses any it
+# cannot pin, so a dep the file omits fails the install loudly -- the
+# sha256sum output above lists every artifact in the closure.
+
+zizmor==1.31.1 \
+    --hash=sha256:385732e55ca152a013b0863213b67be32f94157775354b8ad23cc9c5d70cdc82 \
+    --hash=sha256:3b35b393e8d437e275c7e399047c9892ccc290f3fc5e6aeb9f65a5d3b2a470e0 \
+    --hash=sha256:4a70ee3c2721122aff04d5bbad5e448d15384f45de2ecb3c9493fe9dac2bc95f \
+    --hash=sha256:58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410 \
+    --hash=sha256:9696d3c10919a3a2eb086c102f1bc10717f53ef3700a0d6c55a709c274995476 \
+    --hash=sha256:c5ccb17fd820bb1ddc63cc9a715e97c063025487e585f640389a86d9dfc97cda \
+    --hash=sha256:d1d2cdc23e7b11f2d6cbda0df3bee62ee7993a60647650f51c316ccd33365469 \
+    --hash=sha256:d8a5f86fbf93e65e9d42de9eb4c1855d195c5e9cdeef4f228093ad6711bd8ee4 \
+    --hash=sha256:d9b36840c560a8abe39d9ef3d077239aabf6d572c5c2b629c970592a617dbf6f \
+    --hash=sha256:e7fdf82d31cc67eb1d5030bf2372b25ee2a1c3ad05017e18da70ed138c4accd6 \
+    --hash=sha256:eb9c8a3e2c1080810fdb68bc36717b2a9d61283bb98e3a48689f5a852fc48e9f
+PyYAML==6.0.3 \
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6

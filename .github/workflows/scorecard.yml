@@ -1,0 +1,61 @@
+name: scorecard
+
+# OpenSSF Scorecard is a trend signal rather than a per-commit gate. Keeping
+# it off contribution events means it does not add a second gate for a commit
+# that another workflow already checks.
+
+on:
+  schedule:
+    # Saturday 02:23 UTC: off the hour and off Monday deliberately, and offset
+    # from CodeQL's Wednesday 03:47 UTC slot so the two jobs do not queue.
+    - cron: '23 2 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    # Published results describe the upstream default branch; forks are unsupported.
+    # Skip manual runs on other refs rather than publishing a different tree.
+    if: ${{ !github.event.repository.fork && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      # Uploading the SARIF is what puts findings in the Security tab.
+      security-events: write
+      # Scorecard signs its result over OIDC so a consumer can verify the
+      # published score came from this repository's own run.
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard analysis
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Scorecard results artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload Scorecard results to code scanning
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: results.sarif

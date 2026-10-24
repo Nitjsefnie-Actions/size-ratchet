@@ -1,0 +1,159 @@
+name: audit
+
+# Dependency vulnerability gate: pip-audit resolves each requirements file to
+# its full transitive tree and checks every resolved version against the PyPI
+# advisory database and OSV.
+#
+# WHY THE CRON IS THE IMPORTANT TRIGGER. The gates here that trigger on an
+# event answer a question about a commit — whether a change broke something,
+# whether the tree or its history carries a secret — and stay answered for as
+# long as the commit exists. This one answers "is a version we froze months
+# ago still safe", and that answer changes when a stranger publishes an
+# advisory
+# against an unchanged pin, with no commit here to hang it on. An event-only
+# audit reports clean forever on exactly that commit, so the daily cron
+# (04:12 UTC, off the hour) is what makes this a gate rather than an event
+# check. Push and pull_request are path-filtered to the requirements
+# manifests under .github/workflows because only a manifest change can change
+# this gate's verdict; the cron carries no path filter, because an advisory
+# lands against an unchanged tree.
+#
+# This gate FAILS the build rather than filing an advisory, the same stance
+# as actionlint: a red gate a human must look at beats a notification that
+# accumulates unread. When a fix genuinely is not available yet, add the
+# advisory to --ignore-vuln WITH a comment naming the advisory, why it is
+# unfixable, and what would clear it — never silence the whole gate.
+#
+# pip-audit is installed from .github/workflows/requirements-pip-audit.txt
+# rather than an inline pin in a `run:` block: Dependabot's pip ecosystem
+# reads manifest files, never the pins inside a workflow, so an inline
+# `pip-audit==X` could only go stale unnoticed.
+#
+# There is deliberately NO `python -m pip install --upgrade pip` here. The
+# unreviewed pip upgrade is an unaudited component — the very thing this gate
+# judges — and actionlint.yml carries the same stance for the same reason;
+# the runner's stock pip installs the pinned manifest.
+
+on:
+  push:
+    branches: [main]
+    # Path-filtered to the manifests the gate audits; the header comment
+    # carries the why.
+    paths:
+      - '.github/workflows/requirements*.txt'
+  pull_request:
+    paths:
+      - '.github/workflows/requirements*.txt'
+  schedule:
+    # Daily, not weekly: an advisory is actionable the day it lands, and this
+    # job costs about a minute of a runner. 04:12 is off the hour and split
+    # from the repository's other crons: codeql Wednesdays 03:47, scorecard
+    # Saturdays 02:23, secrets daily 04:41.
+    - cron: '12 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    # A hung job fails in 15 minutes instead of holding GitHub's 6-hour default.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The audit never pushes; keep credentials out of the checkout.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install pip-audit
+        # From the manifest, not an inline pin: Dependabot's pip ecosystem
+        # reads manifest files, never a `run:` block, so the inline pin could
+        # only go stale unnoticed.
+        run: python -m pip install -r .github/workflows/requirements-pip-audit.txt
+
+      - name: Audit dependencies
+        # The glob is evaluated at run time on purpose: a requirements*.txt
+        # manifest added under .github/workflows joins this audit without
+        # editing this workflow. Each manifest gets its OWN pip-audit
+        # invocation, because this repository's manifests are never installed
+        # together — each is consumed by its own workflow (actionlint.yml
+        # installs requirements.txt with --require-hashes, and the install
+        # step above installs requirements-pip-audit.txt) — so each manifest
+        # is audited the way its own install consumes it. The siblings' one
+        # joint invocation is unshippable here: pip-audit resolves ALL
+        # --requirement files in one internal pip dry-run, and a hash-pinned
+        # manifest beside an un-hashed one flips that resolution into
+        # --require-hashes mode, which fails on the hashes the other manifest
+        # does not carry (observed on this workflow's first run in
+        # Nitjsefnie-Actions/pr-gate, the repository this file was ported
+        # from).
+        #
+        # No --ignore-vuln entries at present.
+        #
+        # THE RETRY IS NARROW ON PURPOSE. pip-audit resolves against PyPI and
+        # the advisory database over the network, and a reset connection
+        # exits nonzero exactly like a real finding would; a gate that goes
+        # red for reasons unrelated to its subject is one people learn to
+        # ignore. So this retries ONLY transport/service failures —
+        # connection errors, could-not-connect, SSLError, HTTP 5xx,
+        # rate-limited 429 (the sole retried 4xx, checked before ServiceError
+        # so other 4xx responses exit immediately), and a ServiceError
+        # exception. Findings and every other failure are reported
+        # immediately.
+        run: |
+          shopt -s nullglob
+          manifests=(.github/workflows/requirements*.txt)
+          if [ "${#manifests[@]}" -eq 0 ]; then
+            echo "no requirements*.txt manifest in .github/workflows/; nothing to audit" >&2
+            exit 1
+          fi
+
+          for manifest in "${manifests[@]}"; do
+            echo "auditing $manifest"
+            resolved=0
+            for attempt in 1 2 3; do
+              if pip-audit --progress-spinner off --requirement "$manifest" > audit.out 2>&1; then
+                cat audit.out
+                resolved=1
+                break
+              fi
+
+              if grep -qiE '4[0-9][0-9] Client Error' audit.out \
+                  && ! grep -qiE '429 (Client Error|Too Many Requests)' audit.out; then
+                echo "pip-audit failed with a non-retryable 4xx client error:" >&2
+                cat audit.out >&2
+                exit 1
+              fi
+
+              if grep -qiE 'connection (aborted|reset|error)|read timed out|temporary failure in name resolution' audit.out \
+                  || grep -qiE 'Could not connect to (PyPI|OSV).*vulnerability feed' audit.out \
+                  || grep -qiE '(^|[[:space:]])[[:alnum:]_.]*SSLError:' audit.out \
+                  || grep -qiE '5[0-9][0-9] Server Error|502 Bad Gateway|503 Service Unavailable|504 Gateway Timeout|429 (Client Error|Too Many Requests)' audit.out \
+                  || grep -qiE '(^|[[:space:]])(pip_audit\._service\.interface\.)?ServiceError:' audit.out; then
+                echo "attempt $attempt: transport/service failure, retrying"
+                tail -n 5 audit.out
+                sleep $(( attempt * 15 ))
+                continue
+              fi
+
+              echo "pip-audit reported findings:" >&2
+              cat audit.out >&2
+              exit 1
+            done
+
+            if [ "$resolved" -eq 0 ]; then
+              echo "pip-audit exhausted 3 attempts on $manifest after a transport/service failure:" >&2
+              cat audit.out >&2
+              exit 1
+            fi
+          done

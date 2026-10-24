@@ -1,0 +1,26 @@
+{
+  ".github/dependabot.yml": [
+    931,
+    1347
+  ],
+  ".github/workflows/pr-gate.yml": [
+    459,
+    1113
+  ],
+  "run.py": [
+    568,
+    2277
+  ],
+  "scripts/ci/records.py": [
+    2441,
+    8106
+  ],
+  "scripts/ci/size_baseline.py": [
+    2576,
+    12969
+  ],
+  "tests/run.sh": [
+    18,
+    79
+  ]
+}
