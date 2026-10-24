@@ -1,0 +1,27 @@
+# Subprocess coverage for the one measured cell in tests.yml. run.py is a
+# SUBPROCESS of the suite (tests/run.sh drives pytest, and the CLI cases run
+# run.py with subprocess), so `coverage run tests/run.sh` measures nothing
+# of it. Instead the workflow installs coverage on that cell, writes the
+# site-packages startup hook, and sets COVERAGE_PROCESS_START, which starts
+# the measurer inside every python3 the suite starts -- run.py included.
+# The suite and run.sh are untouched and stay install-free: on a cell
+# without the hook, nothing here has any effect.
+#
+# `parallel` is what keeps the suite's several python3 processes from
+# overwriting one another's data files; `coverage combine` merges them
+# before anything reports. `include` scopes the REPORT to the action's own
+# modules -- run.py and scripts/ci/*.py, the subject the floor in
+# .github/ci-thresholds.json gates; the suite's own helpers are measured
+# too and simply do not appear in the report.
+#
+# The hook file the workflow writes is named to sort before anything else
+# that might want the same slot (a .pth executes in sorted order), and
+# imports nothing but coverage.
+
+[run]
+parallel = True
+
+[report]
+include =
+    run.py
+    scripts/ci/*.py

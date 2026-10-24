@@ -1,0 +1,166 @@
+name: ratchet push
+
+# The data-only push half of the comment ratchet. The gate executes proposed
+# code and stays keyless. The push lives HERE, a top-level workflow where
+# environment: main-push resolves, keyed on the tests run's completion.
+#
+# tests.yml stages ratchet-push only after its aggregate is green on main.
+# This workflow lists that triggering run's artifacts, downloads the records
+# when present, and pushes a records-only commit when there is a change.
+#
+# THE GATE PROTECTS THE PUSH TWICE: only a fully green main gate stages data,
+# and only a completed successful push run reaches this job. No code is
+# checked out, no fetched helper executes, and nothing is installed. Git
+# plumbing materializes just the records file and builds the new tree from
+# the fetched index. The environment deploy key exists only in the push step,
+# whose ssh-agent is stopped when the step ends.
+#
+# Main movement is checked twice. A three-way records merge preserves
+# intervening changes; conflicts drop the run with a summary. A push rejected
+# while main stood still is an error, while rejection after main moved drops
+# this run's data so the next main run can measure again.
+#
+# The records commit starts the gate once more. JSON records are not measured
+# source, so tightening again leaves them unchanged. tests.yml stages nothing
+# on that no-change path: there is no artifact and no second push.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    # tests.yml's name, the run carrying the artifact on a main push. The
+    # trigger's usual hazard does not apply: the job admits only successful
+    # push runs on main, downloads this repository's triggering-run data,
+    # checks out no code, executes nothing from the artifact or fetched tree,
+    # and authenticates with the environment deploy key, not the job token.
+    workflows: [tests]
+    types: [completed]
+permissions: {}
+concurrency:
+  # Never cancel between committing and pushing. Completed main runs queue
+  # here, and each compares its measured base with freshly fetched main.
+  group: ratchet-push
+  cancel-in-progress: false
+jobs:
+  push:
+    # Failed, cancelled and PR runs cannot publish measured main data.
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success'
+    environment: main-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read # list and download the triggering run's artifacts
+    steps:
+      - name: List the triggering run's artifacts
+        id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIZE_RATCHET_REPO: ${{ github.repository }}
+          SIZE_RATCHET_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          # The API failure must remain fatal through sort; it cannot mean
+          # that the triggering run had no artifact.
+          set -euo pipefail
+          names="$(gh api -H 'Cache-Control: no-cache' --paginate \
+            "repos/$SIZE_RATCHET_REPO/actions/runs/$SIZE_RATCHET_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.expired != true) | .name' \
+            | sort -u)"
+          ratchet=false
+          if printf '%s\n' "$names" | grep -qx 'ratchet-push'; then
+            ratchet=true
+          fi
+          echo "ratchet=$ratchet" >> "$GITHUB_OUTPUT"
+
+      - name: Download the ratchet data
+        # Cross-run downloads must name the triggering run and carry a token
+        # capped by actions: read, rather than taking this workflow's run.
+        if: steps.list.outputs.ratchet == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ratchet-push
+          path: ${{ runner.temp }}/ratchet-data
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Push the ratchet commit to main
+        if: steps.list.outputs.ratchet == 'true'
+        env:
+          SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
+          SIZE_RATCHET_REPO: ${{ github.repository }}
+        run: |
+          # Fail closed when the environment is missing its secret: with
+          # no key there is nothing to authenticate the push with, and
+          # the fallback must never be a token.
+          if [ -z "${SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY:-}" ]; then
+            echo "SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY is empty: the main-push environment is missing its secret" >&2
+            exit 1
+          fi
+          eval "$(ssh-agent -s)" >/dev/null
+          # The agent is stopped when this step ends, whatever its
+          # outcome: the key never outlives the step that loaded it.
+          trap 'kill "$SSH_AGENT_PID" 2>/dev/null || true' EXIT
+          ssh-add <(printf '%s\n' "$SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY") >/dev/null
+          mkdir -p ~/.ssh
+          # GitHub SSH host keys, published by GitHub's Meta endpoint:
+          # https://docs.github.com/en/rest/meta/meta#get-github-meta-information
+          printf '%s\n' \
+            'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+            'github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=' \
+            >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=yes'
+          remote="${SIZE_RATCHET_PUSH_REMOTE:-git@github.com:${SIZE_RATCHET_REPO}.git}"
+          base="$(cat "$RUNNER_TEMP/ratchet-data/base.txt")"
+          scratch="$RUNNER_TEMP/ratchet-repo"
+          records='.github/size-baseline.json'
+          current="$RUNNER_TEMP/ratchet-current.json"
+          git init -q "$scratch"
+          git -C "$scratch" remote add origin "$remote"
+          git -C "$scratch" fetch --quiet origin main
+          fetched="$(git -C "$scratch" rev-parse FETCH_HEAD)"
+          git -C "$scratch" show "$fetched:$records" > "$current"
+          if [ "$fetched" != "$base" ]; then
+            if ! git -C "$scratch" show "$base:$records" > "$RUNNER_TEMP/ratchet-base.json"; then
+              echo '::notice::Ancestor records are unreadable; the next main push measures again'
+              echo '### Dropped: ancestor records could not be read' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if ! git merge-file "$current" "$RUNNER_TEMP/ratchet-base.json" "$RUNNER_TEMP/ratchet-data/size-baseline.json"; then
+              echo '::notice::Records changes conflict; the next main push measures again'
+              echo '### Dropped: records merge conflicted' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            cp "$RUNNER_TEMP/ratchet-data/size-baseline.json" "$current"
+          fi
+          # Parse data with the runner's standard library, never a helper
+          # fetched from main. A merge that broke JSON cannot be published.
+          if ! python3 -m json.tool "$current" >/dev/null; then
+            echo '::notice::Merged records are invalid; the next main push measures again'
+            echo '### Dropped: records failed JSON validation' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The index starts at fetched main. Only this one blob is replaced;
+          # read-tree does not materialize any source file into a worktree.
+          git -C "$scratch" read-tree "$fetched"
+          blob="$(git -C "$scratch" hash-object -w "$current")"
+          git -C "$scratch" update-index --add --cacheinfo 100644 "$blob" "$records"
+          tree="$(git -C "$scratch" write-tree)"
+          if [ "$tree" = "$(git -C "$scratch" rev-parse "$fetched^{tree}")" ]; then
+            echo 'No ratchet move is justified by this run: nothing to commit.'
+            exit 0
+          fi
+          git -C "$scratch" config user.name 'github-actions[bot]'
+          git -C "$scratch" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          commit="$(git -C "$scratch" commit-tree "$tree" -p "$fetched" -m 'chore(ratchet): tighten size-baseline records (automated)')"
+          if ! git -C "$scratch" push origin "$commit:refs/heads/main"; then
+            git -C "$scratch" fetch --quiet origin main
+            if [ "$fetched" = "$(git -C "$scratch" rev-parse FETCH_HEAD)" ]; then
+              echo 'the ratchet push was rejected while main stood still' >&2
+              exit 1
+            fi
+            echo '::notice::Main moved before the push landed; the next main push measures again'
+            {
+              echo '### Dropped: main moved before the push landed'
+              echo 'This run is dropped; the next main push measures again.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
