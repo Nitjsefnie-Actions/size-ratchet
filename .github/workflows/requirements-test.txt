@@ -71,9 +71,8 @@ PyYAML==6.0.3 \
 # coverage, for the measured ubuntu cell's subprocess hook and the
 # diff-coverage job's statement analyzer. Its artifact set covers the
 # Linux and macOS wheels, because both legs install the whole file.
-# Dependabot's pip entry watches /.github/workflows, not this file, so
-# a bump here regenerates the --hash lines by hand: pip download the
-# new version for each platform and sha256sum the artifacts.
+# Dependabot's pip entry watches this directory, so a bump arrives as a
+# pull request with the --hash lines rewritten beside the version.
 coverage==7.16.2 \
     --hash=sha256:23219888477edd736b6fcaec1272d47d93b926e999641ffea7e53a1738e70b2b \
     --hash=sha256:40c0f00899fe6181ae7f434ceb200e51f5ee4b8ed10e3b5f0b605f0cae15da87 \

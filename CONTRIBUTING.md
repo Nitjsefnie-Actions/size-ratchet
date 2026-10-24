@@ -62,7 +62,7 @@ venv from the hash-pinned manifest:
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install --require-hashes --only-binary=:all: -r requirements-test.txt
+python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements-test.txt
 tests/run.sh          # the whole suite; its exit status is the verdict
 shellcheck tests/run.sh
 ```
