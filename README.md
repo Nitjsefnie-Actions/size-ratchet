@@ -15,7 +15,8 @@ into the type-and-folder policy below.
 Save this workflow as `.github/workflows/size-baseline.yml`. Change `main`
 to your default branch. The action reference is consumed by commit SHA — a
 tag is a moving pointer — so pin the release's commit and keep the `#
-vX.Y.Z` comment beside it.
+vX.Y.Z` comment beside it. No release exists yet: the `@<release-sha> #
+vX.Y.Z` reference below is a placeholder until the first one is cut.
 
 ```yaml
 name: size baseline
@@ -38,7 +39,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/size-ratchet@v1 # v1.0.0
+      - uses: Nitjsefnie-Actions/size-ratchet@<release-sha> # vX.Y.Z
         with:
           ceilings: ''
           overrides: ''
@@ -170,8 +171,7 @@ writes, and a failure names each differing entry. If neither revision has
 records, check fails and says to run tighten to seed. Once the base has
 records, only the base's bind.
 
-Three consequences for an adopting PR, all stated here because each one
-has bitten an adopter:
+Three consequences for an adopting PR:
 
 - **Every later commit in the adopting PR that changes a recorded file's
   count needs the seed regenerated.** The seed binds exactly: a commit
