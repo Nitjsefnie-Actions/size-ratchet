@@ -3,13 +3,57 @@
     931,
     1347
   ],
+  ".github/scripts/diff_coverage.py": [
+    4703,
+    11595
+  ],
+  ".github/workflows/actionlint.yml": [
+    3472,
+    5512
+  ],
+  ".github/workflows/audit.yml": [
+    3527,
+    5468
+  ],
+  ".github/workflows/codeql.yml": [
+    1822,
+    2723
+  ],
+  ".github/workflows/comment-share.yml": [
+    237,
+    841
+  ],
+  ".github/workflows/coverage-comment.yml": [
+    3309,
+    9951
+  ],
   ".github/workflows/pr-gate.yml": [
     459,
     1113
   ],
+  ".github/workflows/ratchet-push.yml": [
+    2466,
+    6985
+  ],
+  ".github/workflows/scorecard.yml": [
+    593,
+    1587
+  ],
+  ".github/workflows/secrets.yml": [
+    2162,
+    2863
+  ],
+  ".github/workflows/tests.yml": [
+    9517,
+    16076
+  ],
   "run.py": [
-    568,
-    2277
+    661,
+    2389
+  ],
+  "scripts/ci/aggregate_gate.py": [
+    426,
+    1270
   ],
   "scripts/ci/records.py": [
     2441,
@@ -18,6 +62,18 @@
   "scripts/ci/size_baseline.py": [
     2576,
     12969
+  ],
+  "tests/commit_scopes.py": [
+    6966,
+    12515
+  ],
+  "tests/gate_base_freshness.py": [
+    11578,
+    21218
+  ],
+  "tests/helpers.py": [
+    313,
+    1684
   ],
   "tests/run.sh": [
     18,
