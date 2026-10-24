@@ -9,7 +9,8 @@ name: tests
 #
 # The action itself imports the standard library and nothing else; the
 # suite does not. It needs pytest and PyYAML, and the measured cell needs
-# coverage, all installed from the hash-pinned requirements-test.txt into
+# coverage, all installed from the hash-pinned
+# .github/workflows/requirements-test.txt into
 # the interpreter actions/setup-python provides (see the Install the
 # regression toolchain step).
 #
@@ -198,7 +199,7 @@ jobs:
         # artifacts as well as versions, and --only-binary keeps an absent
         # wheel a loud failure rather than an unpinned source build.
         run: |
-          python3 -m pip install --require-hashes --only-binary=:all: -r requirements-test.txt
+          python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements-test.txt
 
       # The measured cell writes coverage's startup hook into the site
       # directory of that same interpreter, the one the suite and its
@@ -305,8 +306,8 @@ jobs:
       # The statement analyzer the script drives is coverage.py, which no
       # image preinstalls and a PEP 668 system python refuses to take, so the
       # coverage block alone is lifted out of the hash-pinned
-      # requirements-test.txt into a venv. No startup hook and no
-      # COVERAGE_PROCESS_START here -- no suite runs in this job, so there is
+      # .github/workflows/requirements-test.txt into a venv. No startup hook
+      # and no COVERAGE_PROCESS_START here -- no suite runs in this job, so there is
       # nothing to measure, only a report to read.
       # The venv's bin goes on PATH through GITHUB_PATH, which the runner
       # puts ahead of every other PATH entry for the later steps; a
@@ -314,7 +315,7 @@ jobs:
       - name: Install coverage tooling
         run: |
           python3 -m venv "$RUNNER_TEMP/coverage-venv"
-          awk '/^coverage==/{f=1} f{print; if ($0 !~ /\\$/) exit}' requirements-test.txt > "$RUNNER_TEMP/coverage.txt"
+          awk '/^coverage==/{f=1} f{print; if ($0 !~ /\\$/) exit}' .github/workflows/requirements-test.txt > "$RUNNER_TEMP/coverage.txt"
           "$RUNNER_TEMP/coverage-venv/bin/python" -m pip install --require-hashes -r "$RUNNER_TEMP/coverage.txt"
           echo "$RUNNER_TEMP/coverage-venv/bin" >> "$GITHUB_PATH"
 
