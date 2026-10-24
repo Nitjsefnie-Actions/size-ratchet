@@ -69,9 +69,12 @@ def test_the_action_installs_nothing():
     run_text = step()['run']
     for forbidden in ('pip install', 'npm ', 'npm ci', 'venv', 'curl', 'wget'):
         assert forbidden not in run_text, forbidden
-    uses = [one_step.get('uses') for one_step in action()['runs']['steps']]
-    assert uses == ['actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97',
-                    None]  # the runner step is a run:, not a uses:
+    steps = action()['runs']['steps']
+    # Exactly two steps: setup-python (whatever release Dependabot pins)
+    # and the runner, which is a run: step and installs nothing.
+    assert len(steps) == 2
+    assert steps[0]['uses'].startswith('actions/setup-python@')
+    assert 'uses' not in steps[1] and 'run' in steps[1]
 
 
 def test_validate_only_judges_the_inputs_alone(tmp_path):
