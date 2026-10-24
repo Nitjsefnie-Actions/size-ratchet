@@ -51,13 +51,15 @@ def head(repo):
 
 
 def run_gate(repo, mode, base_ref=None, **inputs):
-    """Run run.py as the composite action does: env data, python -I."""
-    env = {
-        'PATH': os.environ['PATH'],
-        'HOME': os.environ.get('HOME', '/root'),
-        'GITHUB_WORKSPACE': str(repo),
-        'SIZE_RATCHET_MODE': mode,
-    }
+    """Run run.py as the composite action does: env data, python -I.
+
+    The subprocess inherits the runner's environment: the CI coverage hook
+    rides COVERAGE_PROCESS_START, and a clean-room env would measure none
+    of the runner.
+    """
+    env = dict(os.environ)
+    env['GITHUB_WORKSPACE'] = str(repo)
+    env['SIZE_RATCHET_MODE'] = mode
     if base_ref is not None:
         env['SIZE_RATCHET_BASE_REF'] = base_ref
     for name, value in inputs.items():

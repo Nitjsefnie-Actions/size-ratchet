@@ -21,6 +21,8 @@ tests/*
 !tests/run.sh
 !tests/helpers.py
 !tests/test_*.py
+!tests/gate_base_freshness.py
+!tests/commit_scopes.py
 !.github/
 .github/*
 !.github/PULL_REQUEST_TEMPLATE.md
