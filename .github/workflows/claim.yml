@@ -1,0 +1,25 @@
+name: claim
+on:
+  issue_comment:  # zizmor: ignore[dangerous-triggers]
+    types: [created]
+concurrency:
+  group: claim-${{ github.event.issue.number }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  claim:
+    if: >-
+      github.event.comment.user.type != 'Bot'
+      && (contains(github.event.comment.body, '/claim')
+          || contains(github.event.comment.body, '/unclaim')
+          || contains(github.event.comment.body, '/release'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: Nitjsefnie-Actions/claim@5c64e8d23bce50b761feaad02958d7c30fc6829d # v2.1.0
+        with:
+          max-claims: 'read=2, triage=4, write=6, maintain=10, admin=-1'
+          expire: '7'

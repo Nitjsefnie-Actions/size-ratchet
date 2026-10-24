@@ -1,0 +1,16 @@
+*
+!.gitignore
+!LICENSE
+!CODE_OF_CONDUCT.md
+!README.md
+!.github/
+.github/*
+!.github/PULL_REQUEST_TEMPLATE.md
+!.github/dependabot.yml
+!.github/ISSUE_TEMPLATE/
+.github/ISSUE_TEMPLATE/*
+!.github/ISSUE_TEMPLATE/issue.md
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/claim.yml
+!.github/workflows/pr-gate.yml

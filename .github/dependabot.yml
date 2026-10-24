@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "04:30"
+      timezone: Etc/UTC
+    # Dependabot writes its own commit messages, so the commit
+    # convention only holds for them if it is configured here. `include:
+    # scope` is what appends the `(deps)`, giving `ci(deps): bump ...`.
+    commit-message:
+      prefix: ci
+      include: scope
+    # One pull request per update kind for every action bump.
+    # github/codeql-action ships `init` and `analyze` as separate
+    # dependencies that must stay on one version: `analyze` fails when its
+    # version differs from `init`'s, so a pull request bumping either alone
+    # can never go green. A group covers version updates only unless it names
+    # `applies-to`, and security updates are enabled here, so they get a group
+    # of their own.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
