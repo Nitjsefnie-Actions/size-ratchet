@@ -21,11 +21,14 @@ name: ratchet push
 # paths. The environment deploy key exists only in the push step, whose
 # ssh-agent is stopped when the step ends.
 #
-# Main movement is checked twice. A three-way merge of each records file
-# preserves intervening changes; conflicts or invalid JSON drop the run
-# with a summary. A push rejected while main stood still is an error, while
-# rejection after main moved drops this run's data so the next main run can
-# measure again.
+# Main movement is checked three times. A measurement whose base predates
+# any non-records change on main is dropped outright: a clean merge could
+# otherwise land a record below the file's real count, and tighten never
+# raises one. A three-way merge of each records file preserves records
+# edits made between the base and the push; conflicts or invalid JSON drop
+# the run with a summary. A push rejected while main stood still is an
+# error, while rejection after main moved drops this run's data so the
+# next main run can measure again.
 #
 # The records commit starts both gates once more. JSON records are not
 # measured by either action, so tightening again leaves them unchanged.
@@ -183,6 +186,20 @@ jobs:
               exit 1
             fi
             if [ "$fetched" != "$base" ]; then
+              # A measurement older than any non-records change on main is
+              # stale: landing it could put a record below the file's real
+              # count, and tighten never raises one, so no later run could
+              # repair it. Records-file edits alone are fine — the merge
+              # below preserves them.
+              if [ -n "$(git -C "$scratch" diff --name-only "$base" "$fetched" \
+                    -- ':!.github/size-baseline.json' ':!.github/comment-share.json')" ]; then
+                echo '::notice::Main moved under the measurement; the next main push measures again'
+                {
+                  echo '### Dropped: main moved under the measurement'
+                  echo "This run's $3 tightening is dropped; the next main push measures again."
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
               # Merge the data alone: an intervening records edit must
               # survive, and a conflicting one waits for a fresh measure.
               if ! git -C "$scratch" show "$base:$records" > "$RUNNER_TEMP/base-$file"; then

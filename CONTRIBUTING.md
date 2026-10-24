@@ -118,11 +118,14 @@ loudly, and so does an artifact without its records file or measured base.
 The bot commit reruns both gates once, and unchanged records stage no
 artifact, so the chain stops there.
 
-When main has moved, the push job merges each records file three ways
-against that artifact's measured base. A conflict, an unreadable ancestor
-or invalid merged JSON drops the run with a summary; a push rejected while
-main stood still is an error. A rejection after main moved drops the stale
-run so the next gate can measure again.
+When main has moved, the push job drops the run outright when main carries
+any non-records change made after the artifact's measured base: a clean
+merge could otherwise land a record below the file's real count, and
+tighten never raises one. Records-only edits survive into a three-way
+merge of each records file against that base. A conflict, an unreadable
+ancestor or invalid merged JSON drops the run with a summary; a push
+rejected while main stood still is an error. A rejection after main moved
+drops the stale run so the next gate can measure again.
 
 The records move down only. A pull request that shrinks a recorded file
 lowers its record in the same PR (`require-tight: true` enforces this on
