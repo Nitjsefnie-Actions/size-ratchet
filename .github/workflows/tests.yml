@@ -186,7 +186,7 @@ jobs:
       - name: Compile the runner and the policy modules
         # py_compile refuses a SyntaxError in seconds, before the suite pays
         # for a run; the suite then exercises every module behaviorally.
-        run: python3 -m py_compile run.py scripts/ci/size_baseline.py scripts/ci/records.py scripts/ci/aggregate_gate.py
+        run: python3 -m py_compile run.py scripts/ci/*.py
 
       - name: Install the regression toolchain
         # Into setup-python's interpreter, the one every later step's
