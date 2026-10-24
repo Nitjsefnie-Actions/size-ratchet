@@ -85,6 +85,19 @@ def _scan_value(text, pos):
 def scan_members(text):
     """Return (members, end) for the top-level object of ``text``.
 
+    A document that ends mid-value -- a botched conflict resolution or a
+    truncated hand edit -- is a ValueError like any other malformed one.
+    """
+    try:
+        return _scan_members(text)
+    except IndexError:
+        raise ValueError('the document ends before its top-level object '
+                         'closes') from None
+
+
+def _scan_members(text):
+    """Return (members, end) for the top-level object of ``text``.
+
     ``members`` is a list of (key, value_start, value_end) spans; the spans
     exclude surrounding whitespace so a splice replaces exactly the old
     value's bytes. ``end`` is just past the closing brace.
@@ -142,18 +155,18 @@ def read_document(path: Path, member: str):
     """
     if not path.exists():
         return None
-    text = path.read_bytes().decode('utf-8')
-    return parse_document(text, path, member)
+    return parse_document(path.read_bytes(), path, member)
 
 
-def parse_document(text: str, display_path, member: str):
-    """Parse a records document from text; ``None`` when the key is absent.
+def parse_document(data: bytes, display_path, member: str):
+    """Parse a records document's bytes; ``None`` when the key is absent.
 
     Both the structural scan and every member's ``json.loads`` failure are
     wrapped with the file's name, so a corrupted records file fails naming
     it instead of a bare parser message.
     """
     try:
+        text = data.decode('utf-8')
         members, _ = scan_members(text)
         values = {}
         for key, value_start, value_end in members:
@@ -190,7 +203,7 @@ def read_map_at(root: Path, revision: str, records: str, member: str):
     if shown.returncode != 0:
         raise ValueError(f'cannot read the records file at {revision}: '
                          f'{shown.stderr.decode(errors="replace").strip()}')
-    return parse_document(shown.stdout.decode('utf-8'),
+    return parse_document(shown.stdout,
                           f'{revision}:{records}', member)
 
 
@@ -260,8 +273,8 @@ def write_map(root: Path, records: str, member: str, baseline) -> bool:
     """
     path = root / records
     if path.exists():
-        text = path.read_bytes().decode('utf-8')
         try:
+            text = path.read_bytes().decode('utf-8')
             updated = splice(text, member, serialize_map(baseline))
         except ValueError as failure:
             raise _error(path, str(failure)) from failure

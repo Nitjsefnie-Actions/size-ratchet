@@ -22,13 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import records
 
 
-TYPES = {
-    'source': ('.py', '.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.sh', '.bash'),
-    'stylesheet': ('.css', '.scss'),
-    'sql': ('.sql',),
-    'yaml': ('.yml', '.yaml'),
-}
-DEFAULT_CEILING = 500
+# Re-exported: the policy prices files by these, and callers reach them here.
+from config import DEFAULT_CEILING, TYPES, Policy, type_of  # noqa: E402,F401
 
 GROWTH_REMEDY = (
     'A recorded number is never raised by hand and no entry is added by '
@@ -43,114 +38,6 @@ STALE_REASONS = {
     'graduated': 'the file is at or below its ceiling',
     'shrunk': 'the file shrank below its record',
 }
-
-
-def type_of(rel):
-    """The file's type by extension, or ``None`` when untyped."""
-    for type_name, extensions in TYPES.items():
-        if rel.endswith(extensions):
-            return type_name
-    return None
-
-
-def _positive_int(text, input_name, line_no, raw_line):
-    try:
-        value = int(text)
-    except ValueError:
-        value = 0
-    if value < 1:
-        raise ValueError(
-            f'input {input_name} line {line_no} ({raw_line!r}): '
-            f'ceiling {text!r} is not a positive integer')
-    return value
-
-
-def parse_ceilings(text):
-    """``<type>: <ceiling>`` lines; unknown type or a bad ceiling fails."""
-    parsed = {}
-    for line_no, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        if not line:
-            continue
-        type_name, sep, rest = line.partition(':')
-        if not sep:
-            raise ValueError(f'input ceilings line {line_no} ({raw!r}): '
-                             'expected "<type>: <ceiling>"')
-        type_name = type_name.strip()
-        if type_name not in TYPES:
-            raise ValueError(f'input ceilings line {line_no} ({raw!r}): '
-                             f'unknown type {type_name!r} '
-                             f'(known: {", ".join(sorted(TYPES))})')
-        parsed[type_name] = _positive_int(rest.strip(), 'ceilings', line_no, raw)
-    return parsed
-
-
-def parse_overrides(text):
-    """``<folder>/: <ceiling>`` lines; the folder must end in ``/``."""
-    parsed = {}
-    for line_no, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        if not line:
-            continue
-        folder, sep, rest = line.partition(':')
-        if not sep:
-            raise ValueError(f'input overrides line {line_no} ({raw!r}): '
-                             'expected "<folder>/: <ceiling>"')
-        folder = folder.strip()
-        in_error = (f'input overrides line {line_no} ({raw!r})')
-        if not folder.endswith('/'):
-            raise ValueError(f'{in_error}: folder {folder!r} has no trailing /')
-        if any(char in folder for char in '*?['):
-            raise ValueError(f'{in_error}: folder {folder!r} carries a '
-                             'wildcard; a folder is a literal path prefix')
-        if folder in parsed:
-            raise ValueError(f'{in_error}: duplicate folder {folder!r}')
-        parsed[folder] = _positive_int(rest.strip(), 'overrides', line_no,
-                                       f'{folder}: {rest}')
-    return parsed
-
-
-def parse_exclude(text):
-    """Exact paths or ``<folder>/`` prefixes, one per non-blank line."""
-    return [stripped for raw in text.splitlines()
-            if (stripped := raw.strip())]
-
-
-def check_policy(unclassified):
-    if unclassified not in ('ignore', 'fail'):
-        raise ValueError(f'input unclassified must be ignore or fail, '
-                         f'got {unclassified!r}')
-
-
-class Policy:
-    """Resolved ceilings, overrides and exclusions for one run."""
-
-    def __init__(self, ceilings_text='', overrides_text='', exclude_text='',
-                 unclassified='ignore'):
-        check_policy(unclassified)
-        self.ceilings = parse_ceilings(ceilings_text)
-        self.overrides = parse_overrides(overrides_text)
-        self.exclude = parse_exclude(exclude_text)
-        self.unclassified = unclassified
-        self.prefixes = sorted(self.overrides, key=len, reverse=True)
-
-    def excluded(self, rel):
-        for entry in self.exclude:
-            if entry.endswith('/'):
-                if rel.startswith(entry):
-                    return True
-            elif rel == entry:
-                return True
-        return False
-
-    def ceiling(self, rel):
-        """The first ceiling that applies: override, per-type, default."""
-        if type_of(rel) is None:
-            return None
-        for prefix in self.prefixes:
-            if rel.startswith(prefix):
-                return self.overrides[prefix]
-        return self.ceilings.get(type_of(rel), DEFAULT_CEILING)
 
 
 def list_tree(root, revision):
@@ -366,9 +253,12 @@ def run(root, records_path, member_input, mode, base_ref, policy,
     member = member_input or records.DEFAULT_MEMBER
     records.validate_path(root, records_path)
     entries = list_tree(root, 'HEAD')
-    head_map = records.read_document(root / records_path, member)
     if mode == 'tighten':
+        # Tighten rewrites the working-tree file, so it reads that file.
+        head_map = records.read_document(root / records_path, member)
         return _tighten(root, records_path, member, entries, policy, head_map)
+    # Check judges one revision: the tree and its records both from HEAD.
+    head_map = records.read_map_at(root, 'HEAD', records_path, member)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -395,10 +285,12 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
     if not base_ref:
         raise ValueError('input base-ref is empty and check needs it: pass '
                          'the revision whose records bind this check')
-    if stale not in ('warn', 'fail'):
-        raise ValueError(f'input stale must be warn or fail, got {stale!r}')
     base_map = records.read_map_at(root, base_ref, records_path, member)
-    sizes = measure(root, entries, policy, head_map or {}, records_path)
+    # Measure every path either side records: a head that drops an untyped
+    # file's entry must not take that file out of measurement, or a records
+    # edit in the head would loosen the base's binding record.
+    recorded = set(base_map or {}) | set(head_map or {})
+    sizes = measure(root, entries, policy, recorded, records_path)
     if base_map is None:
         return _check_seed(head_map, sizes, policy)
     for path in unclassified_violations(sizes, base_map, policy):

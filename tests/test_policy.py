@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'ci'))
+import config  # noqa: E402
 import size_baseline  # noqa: E402
 
 
@@ -70,37 +71,37 @@ def test_an_override_never_gives_a_ceiling_to_an_untyped_file():
 ])
 def test_a_non_positive_ceiling_is_an_error_naming_input_and_line(line):
     with pytest.raises(ValueError, match='input ceilings line 1'):
-        size_baseline.parse_ceilings(line)
+        config.parse_ceilings(line)
 
 
 def test_a_malformed_ceilings_line_is_an_error():
     with pytest.raises(ValueError, match='line 2'):
-        size_baseline.parse_ceilings('source: 500\nno separator here\n')
+        config.parse_ceilings('source: 500\nno separator here\n')
 
 
 def test_an_unknown_type_is_an_error_naming_the_line():
     with pytest.raises(ValueError, match="unknown type 'rust'"):
-        size_baseline.parse_ceilings('rust: 500\n')
+        config.parse_ceilings('rust: 500\n')
 
 
 def test_a_folder_without_trailing_slash_is_an_error():
     with pytest.raises(ValueError, match='has no trailing /'):
-        size_baseline.parse_overrides('tests: 700\n')
+        config.parse_overrides('tests: 700\n')
 
 
 def test_a_duplicate_folder_is_an_error():
     with pytest.raises(ValueError, match="duplicate folder 'tests/'"):
-        size_baseline.parse_overrides('tests/: 700\ntests/: 300\n')
+        config.parse_overrides('tests/: 700\ntests/: 300\n')
 
 
 def test_a_wildcard_folder_is_an_error():
     with pytest.raises(ValueError, match='wildcard'):
-        size_baseline.parse_overrides('tests*/: 700\n')
+        config.parse_overrides('tests*/: 700\n')
 
 
 def test_an_override_ceiling_error_names_the_input():
     with pytest.raises(ValueError, match='input overrides line 1'):
-        size_baseline.parse_overrides('tests/: nope\n')
+        config.parse_overrides('tests/: nope\n')
 
 
 def test_blank_lines_are_skipped_everywhere():
@@ -124,3 +125,21 @@ def test_excluded_matches_exact_paths_and_prefixes():
 def test_unclassified_must_be_ignore_or_fail():
     with pytest.raises(ValueError, match='input unclassified'):
         size_baseline.Policy(unclassified='strict')
+
+
+def test_a_duplicate_type_is_an_error():
+    with pytest.raises(ValueError, match="input ceilings line 2 .*duplicate type 'source'"):
+        config.parse_ceilings('source: 800\nsource: 900\n')
+
+
+@pytest.mark.parametrize('folder', ['/abs/', '../up/', 'a/../b/'])
+def test_a_folder_outside_the_repository_is_an_error(folder):
+    with pytest.raises(ValueError, match='input overrides line 1 .*repository-relative'):
+        config.parse_overrides(f'{folder}: 700\n')
+
+
+@pytest.mark.parametrize('value', ['+7', '1_000', ' 7 x', '0x10', '７'])
+def test_a_ceiling_must_be_plain_decimal_digits(value):
+    with pytest.raises(ValueError, match='input ceilings line 1 .*not a positive integer'):
+        config.parse_ceilings(f'source: {value}\n')
+
