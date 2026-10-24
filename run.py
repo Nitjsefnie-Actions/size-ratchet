@@ -67,11 +67,14 @@ def build_policy():
 def main() -> int:
     try:
         root = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd())).resolve()
-        mode = resolve_mode(env('MODE', 'auto'))
+        requested = env('MODE', 'auto')
         policy_out = build_policy()
-        base = env('BASE_REF', '') if mode == 'check' else ''
         if sys.argv[1:] == ['--validate-only']:
+            # The validate-only pass judges the inputs alone: the event
+            # context is the caller's, and a manual run has none.
             return 0
+        mode = resolve_mode(requested)
+        base = env('BASE_REF', '') if mode == 'check' else ''
         return policy.run(
             root,
             env('RECORDS', '.github/size-baseline.json'),

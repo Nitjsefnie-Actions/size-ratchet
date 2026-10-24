@@ -74,5 +74,20 @@ def test_the_action_installs_nothing():
                     None]  # the runner step is a run:, not a uses:
 
 
+def test_validate_only_judges_the_inputs_alone(tmp_path):
+    # A manual run has no event context; the validate-only pass the action
+    # runs first must not depend on one.
+    import os
+    import subprocess
+    import sys
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith(('GITHUB_', 'SIZE_RATCHET_'))}
+    env['GITHUB_WORKSPACE'] = str(tmp_path)
+    done = subprocess.run(
+        [sys.executable, '-I', str(ACTION_ROOT / 'run.py'), '--validate-only'],
+        env=env, capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+
+
 def test_the_composite_uses_a_bash_shell():
     assert step()['shell'] == 'bash'
