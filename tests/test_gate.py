@@ -55,6 +55,17 @@ def test_a_symlink_is_never_measured(tmp_path):
     assert 'src/link.py' not in sizes
 
 
+def test_a_binary_file_is_never_unclassified(tmp_path):
+    # The only call that consults is_binary on an untyped file: under
+    # unclassified: fail the file is judged, and git's binary rule must
+    # keep it out of the measured set.
+    repo = make_repo(tmp_path, {'src/a.py': BIG, 'src/blob.bin': b'x\0y\n' * 10})
+    policy = size_baseline.Policy(unclassified='fail')
+    sizes = size_baseline.measure(repo, entries_of(repo), policy, {})
+    assert 'src/blob.bin' not in sizes
+    assert sizes['src/a.py'] == 501
+
+
 def test_untyped_files_are_measured_only_when_asked(tmp_path):
     files = {'src/a.py': BIG, 'docs/README.md': '\n'.join('x' * 80 for _ in range(600))}
     repo = make_repo(tmp_path, files)
@@ -183,6 +194,24 @@ def test_tighten_keeps_an_untyped_record_lowered_to_its_count():
     baseline = {'data.rst': 900}
     assert size_baseline.tightened(baseline, sizes, policy) == \
         {'data.rst': 300}
+
+
+def test_tighten_never_adds_an_entry_after_seeding():
+    # Records exist, so an unrecorded over-ceiling file is NOT picked up:
+    # additions happen only when seeding. The file fails check instead,
+    # until it is excluded or shrunk. A no-change tighten returns None, and
+    # the mutant that adds the entry returns the map instead.
+    policy = size_baseline.Policy()
+    baseline = {'src/a.py': 900}
+    sizes = {'src/a.py': 900, 'src/new.py': 700}
+    assert size_baseline.tightened(baseline, sizes, policy) is None
+
+
+def test_tighten_never_raises_a_grown_record():
+    policy = size_baseline.Policy()
+    baseline = {'src/a.py': 600}
+    sizes = {'src/a.py': 700}
+    assert size_baseline.tightened(baseline, sizes, policy) is None
 
 
 def test_tighten_returns_none_when_nothing_would_change():
