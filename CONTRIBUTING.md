@@ -100,23 +100,29 @@ there.
 
 ## Tighten this repository's records
 
-Records tighten on every default-branch push. After the aggregate gate is
-green on main, the tests workflow's `ratchet` job runs the local action in
-tighten mode. Only a changed `.github/size-baseline.json` stages a
-ratchet-push artifact, together with the measured run's head SHA.
+Both records files tighten on every default-branch push. After the
+aggregate gate is green on main, the tests workflow's `ratchet` job runs the
+local action in tighten mode. Only a changed `.github/size-baseline.json`
+stages a `ratchet-push` artifact, together with the measured run's head SHA.
+The comment share workflow does the same for `.github/comment-share.json`:
+after its gate passes on a main push, a changed file stages a
+`comment-share-ratchet` artifact with its own measured head SHA.
 
 The separate top-level [ratchet-push workflow](.github/workflows/ratchet-push.yml)
-lands the result. It admits only successful main push runs, downloads that
-run's data, and creates a records-only commit with the environment deploy
-key. It checks out no code, installs nothing, and runs no fetched helpers.
-Configure `MASTER_PUSH_DEPLOY_KEY` in the `main-push` environment; a
-missing key fails loudly. The bot commit reruns the gate once, and
-unchanged records stage no artifact, so the chain stops there.
+lands the result. It admits only successful main push runs of either
+workflow, downloads each artifact that run staged, and creates one
+records-only commit with the environment deploy key. It checks out no code,
+installs nothing, and runs no fetched helpers. Configure
+`MASTER_PUSH_DEPLOY_KEY` in the `main-push` environment; a missing key fails
+loudly, and so does an artifact without its records file or measured base.
+The bot commit reruns both gates once, and unchanged records stage no
+artifact, so the chain stops there.
 
-When main has moved, the push job merges the single records file three
-ways. Conflicts drop that run with a summary; a push rejected while main
-stood still is an error. A rejection after main moved drops the stale run
-so the next gate can measure again.
+When main has moved, the push job merges each records file three ways
+against that artifact's measured base. A conflict, an unreadable ancestor
+or invalid merged JSON drops the run with a summary; a push rejected while
+main stood still is an error. A rejection after main moved drops the stale
+run so the next gate can measure again.
 
 The records move down only. A pull request that shrinks a recorded file
 lowers its record in the same PR (`require-tight: true` enforces this on
