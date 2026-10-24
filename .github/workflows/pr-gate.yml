@@ -1,8 +1,10 @@
 name: pr gate
+
 # pull_request_target: a fork's pull_request token is read-only, so its
 # comment and close would silently do nothing. The pinned action reads the
-# template at the PR's base SHA and runs no pull-request code.
-on:
+# template at the PR's base SHA and runs no pull-request code; the body
+# reaches it through the API, never through an expression.
+on: # zizmor: ignore[dangerous-triggers]
   pull_request_target:
     types: [opened, edited, reopened, ready_for_review]
 permissions:
@@ -17,9 +19,7 @@ jobs:
     # A reopen is authored by github-actions[bot] with this workflow's own
     # github.token, and GitHub's no-recursion exception holds such an event's
     # pull_request runs for approval: a draft closed and reopened loses its CI.
-    if: >-
-      github.event.pull_request.user.type != 'Bot'
-      && github.event.pull_request.draft == false
+    if: github.event.pull_request.user.type != 'Bot' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

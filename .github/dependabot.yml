@@ -5,10 +5,10 @@ updates:
     schedule:
       interval: weekly
       day: wednesday
-      time: "04:30"
+      time: "04:23"
       timezone: Etc/UTC
-    # Dependabot writes its own commit messages, so the commit
-    # convention only holds for them if it is configured here. `include:
+    # Dependabot writes its own commit messages, so the convention in
+    # CONTRIBUTING.md only holds for them if it is configured here. `include:
     # scope` is what appends the `(deps)`, giving `ci(deps): bump ...`.
     commit-message:
       prefix: ci
@@ -28,3 +28,20 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+  - package-ecosystem: pip
+    directory: "/.github/workflows"
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "04:23"
+      timezone: Etc/UTC
+    # The entry above watches this repository's actions, and the ecosystem it
+    # belongs to never reads a requirements file: the zizmor pin in this
+    # directory is hash-pinned, so without this entry it is frozen. A zizmor
+    # release carrying a fixed CVE cannot land until someone remembers to
+    # regenerate the hashes by hand, which is what left this pin behind the
+    # two releases that had already landed when it was written. The `pip`
+    # ecosystem does rewrite the `--hash` lines with the version.
+    commit-message:
+      prefix: ci
+      include: scope
