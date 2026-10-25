@@ -174,10 +174,11 @@ def _stale_detail(detail):
 
 
 def record_states(sizes, baseline, policy):
-    """Per-record verdict: 'grown' (a violation) or a stale reason.
+    """Per-record verdict: 'grown' (a violation), a stale reason, or
+    'same' (unchanged) passes silently.
 
     An untyped file has no ceiling, so its record can shrink but never
-    graduate; graduation needs a ceiling to fall to.
+    graduate.
     """
     states = {}
     for path, recorded in sorted(baseline.items()):
