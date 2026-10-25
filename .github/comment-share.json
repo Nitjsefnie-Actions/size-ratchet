@@ -7,6 +7,10 @@
     4703,
     11595
   ],
+  ".github/scripts/ratchet_thresholds.py": [
+    611,
+    2653
+  ],
   ".github/workflows/actionlint.yml": [
     3472,
     5512
