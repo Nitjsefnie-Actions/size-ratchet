@@ -14,6 +14,9 @@ Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2
 # build it from the hash-pinned sdist (--no-binary=PyYAML, the one
 # source build the installs allow). Every other package's missing
 # compatible wheel still fails instead of building unpinned tooling.
+# Retire the exception when a PyYAML release ships CPython 3.15
+# wheels: update its version and wheel hashes, then drop the
+# --no-binary=PyYAML exceptions and the sdist hash.
 PyYAML==6.0.3 \
     --hash=sha256:214ed4befebe12df36bcc8bc2b64b396ca31be9304b8f59e25c11cf94a4c033b \
     --hash=sha256:02ea2dfa234451bbb8772601d7b8e426c2bfa197136796224e50e35a78777956 \
