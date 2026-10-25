@@ -11,7 +11,9 @@
 # wheel, so that runner resolves the sdist and builds it from source,
 # and the sdist's sha256 sits beside the wheel hashes. Every block
 # lists every artifact its closure ships, so it resolves on whichever
-# platform lifts it.
+# platform lifts it. When a PyYAML release ships CPython 3.15 wheels,
+# retire the sdist: update its version and hashes, then drop the sdist
+# hash line.
 #
 # The `pip` entry in .github/dependabot.yml watches this directory, so a
 # version bump arrives as a pull request with the --hash lines rewritten
