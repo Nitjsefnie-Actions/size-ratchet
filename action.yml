@@ -65,7 +65,7 @@ runs:
   steps:
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
-        python-version: '3.13.14'
+        python-version: '3.15.1'
     - name: Measure and apply the ratchet
       shell: bash
       # Inputs are data: none becomes shell program text. -I keeps consumer
