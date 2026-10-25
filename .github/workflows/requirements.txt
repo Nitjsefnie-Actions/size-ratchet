@@ -4,11 +4,14 @@
 # for that version; these sha256 hashes make the install the same bytes
 # on every run.
 #
-# What the hashes have to cover is the wheel each consumer's runner
+# What the hashes have to cover is the artifact each consumer's runner
 # resolves: actionlint.yml's ubuntu-latest runner takes x86_64 glibc,
-# CPython 3.13. zizmor declares no runtime dependencies, so PyYAML is
-# the whole transitive closure. Every block lists every artifact its
-# closure ships, so it resolves on whichever platform lifts it.
+# CPython 3.15. zizmor declares no runtime dependencies, so PyYAML is
+# the whole transitive closure. PyYAML 6.0.3 ships no CPython 3.15
+# wheel, so that runner resolves the sdist and builds it from source,
+# and the sdist's sha256 sits beside the wheel hashes. Every block
+# lists every artifact its closure ships, so it resolves on whichever
+# platform lifts it.
 #
 # The `pip` entry in .github/dependabot.yml watches this directory, so a
 # version bump arrives as a pull request with the --hash lines rewritten
@@ -42,4 +45,5 @@ zizmor==1.31.1 \
     --hash=sha256:e7fdf82d31cc67eb1d5030bf2372b25ee2a1c3ad05017e18da70ed138c4accd6 \
     --hash=sha256:eb9c8a3e2c1080810fdb68bc36717b2a9d61283bb98e3a48689f5a852fc48e9f
 PyYAML==6.0.3 \
-    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6 \
+    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f
