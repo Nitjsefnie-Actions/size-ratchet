@@ -47,7 +47,7 @@ def stage(measured, thresholds, out_dir):
     recorded_measured = record_number(python['measured'], 'coverage.python.measured')
     measured = _measurement(measured)
     if measured - recorded_measured > RAISE_HYSTERESIS:
-        python['floor'] = measured - CALIBRATION_GAP
+        python['floor'] = max(floor, measured - CALIBRATION_GAP)
         python['measured'] = measured
         payload = json.dumps(record, indent=2, allow_nan=False, default=float) + '\n'
         out_dir.mkdir(parents=True, exist_ok=True)

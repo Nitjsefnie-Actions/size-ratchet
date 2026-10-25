@@ -12,17 +12,17 @@ import pytest
 SCRIPT = (Path(__file__).resolve().parents[1] /
           '.github' / 'scripts' / 'ratchet_thresholds.py')
 
-# The record's committed shape; every case copies it and mutates one member,
-# so a refusal is attributable to that mutation, not the base shape.
+# The record's committed shape; every case copies it; refusals mutate one
+# member, so a refusal is attributable to that mutation, not the base shape.
 RECORD = {
     'schema_version': 1,
     'coverage': {'python': {
         'floor': 94.7, 'measured': 96.2, 'cell': 'ubuntu-latest'}},
 }
 
-# Measured values that justify a raise: each clears the recorded 96.2 by
-# more than the 1.5 hysteresis, so the raise arm's arithmetic is driven.
-RAISES = ['better', 'decimal_raise']
+# Measured values that justify a raise: each clears its record by more
+# than the 1.5 hysteresis, so the raise arm's arithmetic is driven.
+RAISES = ['better', 'decimal_raise', 'recorded_floor_wins']
 
 # Measured values that must stage nothing: equal, lower, inside the
 # hysteresis, one decimal step below its boundary, and exactly on it.
@@ -66,6 +66,12 @@ def run_case(case, scratch):
     elif case == 'decimal_raise':
         measured = '97.71'
         expected_floor = Decimal('96.21')
+    elif case == 'recorded_floor_wins':
+        # floor 96.0 sits above measured - 1.5; the raise must keep it.
+        record['coverage']['python']['floor'] = 96.0
+        record['coverage']['python']['measured'] = 94.4
+        measured = '96.0'
+        expected_floor = Decimal('96.0')
     elif case == 'malformed':
         refused = True
     elif case.startswith('measured:'):
