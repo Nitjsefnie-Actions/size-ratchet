@@ -93,6 +93,29 @@ def test_stale_fail_fails(tmp_path):
     assert 'src/a.py: stale' in done.stderr
 
 
+@pytest.mark.parametrize('stale', ['warn', 'fail'])
+def test_an_unchanged_record_is_neither_failure_nor_stale(tmp_path, stale):
+    # A record equal to the head count (issue 11) is neither a failure nor
+    # a stale notice; before the fix the check crashed on it instead. The
+    # file sits over its ceiling, so the record is 'same', not graduated.
+    repo = make_repo(tmp_path, {'src/a.py': BIG})
+    base = put_records(repo, {'src/a.py': 501})
+    done = run_gate(repo, 'check', base_ref=base, stale=stale)
+    assert done.returncode == 0, done.stderr
+    assert 'Traceback' not in done.stderr
+    assert '::notice::' not in done.stdout
+
+
+def test_an_unchanged_record_leaves_the_stale_ones_reported(tmp_path):
+    repo = make_repo(tmp_path, {'src/same.py': BIG,
+                                'src/stale.py': 'x\n' * 600})
+    base = put_records(repo, {'src/same.py': 501, 'src/stale.py': 900})
+    done = run_gate(repo, 'check', base_ref=base)
+    assert done.returncode == 0, done.stderr
+    assert '::notice::src/stale.py: stale' in done.stdout
+    assert '::notice::src/same.py' not in done.stdout
+
+
 def test_a_deleted_entry_is_stale(tmp_path):
     repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 480})
     base = put_records(repo, {'src/a.py': 480})
