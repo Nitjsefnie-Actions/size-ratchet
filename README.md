@@ -55,7 +55,7 @@ jobs:
 The `with:` block shows **every input with its default**. Omit it and a
 bare `uses:` step behaves the same on these events. The checkout selects
 the PR's head tree; full history supplies the PR base without retaining a
-token. The action needs a Git checkout, bash and Python 3.13, which it sets
+token. The action needs a Git checkout, bash and Python 3.15, which it sets
 up itself. It runs its runner under `python3 -I`: the standard library and
 the action's own modules only, so nothing from the consumer's tree is ever
 imported or executed, and there is no dependency to install or pin.
