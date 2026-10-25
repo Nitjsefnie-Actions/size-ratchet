@@ -260,6 +260,35 @@ jobs:
           path: coverage.xml
           if-no-files-found: error
 
+      # Stage ratchet data from main pushes only: a PR run measures the
+      # merge tree, which main will never hold, and ratchet-push's own if:
+      # ignores PR runs anyway. Exactly one leg uploads, so
+      # ci-thresholds-ratchet names one measurement just as coverage-xml
+      # does above.
+      - name: Record the thresholds ratchet data
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
+        run: |
+          measured="$(python3 -m coverage report --format=total --precision=1 --rcfile=.coveragerc)"
+          python3 .github/scripts/ratchet_thresholds.py --measured "$measured" \
+            --thresholds .github/ci-thresholds.json \
+            --out-dir "$RUNNER_TEMP/ratchet-data"
+          # Absence IS the no-raise signal. Every refusal exits nonzero,
+          # so no artifact can mean only that no raise was justified,
+          # never that the script failed quietly. The base goes beside the
+          # staged data only, so a no-op cannot create an artifact.
+          if [ -f "$RUNNER_TEMP/ratchet-data/ci-thresholds.json" ]; then
+            git rev-parse HEAD > "$RUNNER_TEMP/ratchet-data/base.txt"
+          fi
+
+      - name: Upload the thresholds ratchet data
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-thresholds-ratchet
+          path: ${{ runner.temp }}/ratchet-data
+          if-no-files-found: ignore
+          retention-days: 1
+
   # The per-change half of the coverage story: of the lines this pull
   # request ADDED that coverage considers executable, how many the suite
   # reached. INFORMATIONAL, never a gate -- the tree-wide floor in the
