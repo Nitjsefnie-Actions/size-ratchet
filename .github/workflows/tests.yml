@@ -8,11 +8,10 @@ name: tests
 # Install coverage tooling step).
 #
 # The action itself imports the standard library and nothing else; the
-# suite does not. It needs pytest and PyYAML, and the measured cell needs
-# coverage, all installed from the hash-pinned
-# .github/workflows/requirements-test.txt into
-# the interpreter actions/setup-python provides (see the Install the
-# regression toolchain step).
+# suite does not: it needs pytest, PyYAML, coverage (measured cell),
+# all from the hash-pinned .github/workflows/requirements-test.txt,
+# into the interpreter actions/setup-python provides (see the Install
+# the regression toolchain step).
 #
 # The same measurement is also reported per change: the measured cell
 # writes the XML form of it, the pull-request-only `diff-coverage` job
@@ -143,12 +142,12 @@ jobs:
           # .git/config lets any later step reuse it.
           persist-credentials: false
 
-      # One interpreter on both legs: the hash-pinned manifest lists the
-      # CPython 3.13 wheels for Linux x86_64 and macOS arm64, and the action
-      # runs on the same 3.13.14 it sets up for consumers.
+      # One interpreter on both legs: the manifest's hashes cover the 3.15
+      # artifacts for Linux x86_64 and macOS arm64, and the action runs on
+      # the 3.15.1 it sets up for consumers.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.13.14'
+          python-version: '3.15.1'
 
       - name: Check no tracked file carries a merge-conflict marker
         # A conflict marker is text that looks like prose in a Markdown
@@ -196,10 +195,11 @@ jobs:
         # GITHUB_ENV is shadowed by it. That interpreter is a toolcache
         # install, not the image's externally managed (PEP 668) system
         # python, so pip may install into it. --require-hashes pins
-        # artifacts as well as versions, and --only-binary keeps an absent
-        # wheel a loud failure rather than an unpinned source build.
+        # artifacts as well as versions; --only-binary keeps an absent
+        # wheel a loud failure rather than an unpinned source build;
+        # PyYAML alone builds the hash-pinned sdist (no 3.15 wheel).
         run: |
-          python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements-test.txt
+          python3 -m pip install --require-hashes --only-binary=:all: --no-binary=PyYAML -r .github/workflows/requirements-test.txt
 
       # The measured cell writes coverage's startup hook into the site
       # directory of that same interpreter, the one the suite and its

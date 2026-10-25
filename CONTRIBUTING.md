@@ -55,14 +55,14 @@ check `git status --porcelain` is clean with every shipped file tracked.
 
 ## Getting it running
 
-Python 3.13, Git, bash and ShellCheck. The action's runner imports the
+Python 3.15, Git, bash and ShellCheck. The action's runner imports the
 standard library alone, and the suite installs its pinned toolchain into a
 venv from the hash-pinned manifest:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements-test.txt
+python3 -m pip install --require-hashes --only-binary=:all: --no-binary=PyYAML -r .github/workflows/requirements-test.txt
 tests/run.sh          # the whole suite; its exit status is the verdict
 shellcheck tests/run.sh
 ```
