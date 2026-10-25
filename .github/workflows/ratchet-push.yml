@@ -93,12 +93,14 @@ jobs:
           fi
           echo "ratchet=$ratchet" >> "$GITHUB_OUTPUT"
           echo "records=$records" >> "$GITHUB_OUTPUT"
-          echo "thresholds=$thresholds" >> "$GITHUB_OUTPUT"
           any=false
           if [ "$ratchet" = true ] || [ "$records" = true ] || [ "$thresholds" = true ]; then
             any=true
           fi
           echo "any=$any" >> "$GITHUB_OUTPUT"
+          # Emitted last so no three redirects to the same file sit
+          # adjacent: shellcheck reads that as one foldable block (SC2129).
+          echo "thresholds=$thresholds" >> "$GITHUB_OUTPUT"
 
       - name: Download the size records
         # Cross-run downloads must name the triggering run and carry a token
