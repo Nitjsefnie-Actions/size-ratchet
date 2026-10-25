@@ -302,6 +302,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         if state[0] == 'grown':
             count, recorded = state[1]
             failures.append(f'{path}: {count} lines above its record of {recorded}')
+        elif state[0] == 'same':
+            continue
         elif stale == 'fail':
             failures.append(f'{path}: stale ({STALE_REASONS[state[0]]}); '
                             f'{_stale_detail(state[1])}')
