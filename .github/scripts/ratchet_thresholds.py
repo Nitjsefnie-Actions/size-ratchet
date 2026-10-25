@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Stage a higher Python coverage calibration for the separate ratchet push.
+"""Stage a higher Python coverage floor for the privileged push.
 
-A missing artifact means no raise is justified, so invalid measurements and
-records must refuse loudly instead of looking like an ordinary no-op. Only the
-ubuntu-latest record is measured here; another schema or cell needs a deliberate
-change to the measuring job before it can produce data for the privileged push.
-The input record stays untouched, and a lower measurement never loosens it.
+A missing staged file means no raise, never a quiet failure; the input
+record stays untouched.
 """
 import argparse
 from decimal import Decimal, InvalidOperation
