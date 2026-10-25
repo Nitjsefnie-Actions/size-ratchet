@@ -100,37 +100,46 @@ there.
 
 ## Tighten this repository's records
 
-Both records files tighten on every default-branch push. After the
+Every records file tightens on every default-branch push. After the
 aggregate gate is green on main, the tests workflow's `ratchet` job runs the
 local action in tighten mode. Only a changed `.github/size-baseline.json`
 stages a `ratchet-push` artifact, together with the measured run's head SHA.
 The comment share workflow does the same for `.github/comment-share.json`:
 after its gate passes on a main push, a changed file stages a
-`comment-share-ratchet` artifact with its own measured head SHA.
+`comment-share-ratchet` artifact with its own measured head SHA. The tests
+workflow's measured cell raises the coverage floor the same way: when the
+measured total clears the recorded one by more than the hysteresis, the
+ratchet script stages a `ci-thresholds-ratchet` artifact carrying a raised
+`.github/ci-thresholds.json` and the measured head SHA, and a lower or
+barely-better measurement stages nothing.
 
 The separate top-level [ratchet-push workflow](.github/workflows/ratchet-push.yml)
-lands the result. It admits only successful main push runs of either
-workflow, downloads each artifact that run staged, and creates one
+lands the result. It admits only successful main push runs of the gate
+workflows, downloads each artifact that run staged, and creates one
 records-only commit with the environment deploy key. It checks out no code,
 installs nothing, and runs no fetched helpers. Configure
 `MASTER_PUSH_DEPLOY_KEY` in the `main-push` environment; a missing key fails
 loudly, and so does an artifact without its records file or measured base.
-The bot commit reruns both gates once, and unchanged records stage no
+The bot commit reruns the gates once, and unchanged records stage no
 artifact, so the chain stops there.
 
 When main has moved, the push job drops the run outright when main carries
-any non-records change made after the artifact's measured base: a clean
-merge could otherwise land a record below the file's real count, and
-tighten never raises one. Records-only edits survive into a three-way
-merge of each records file against that base. A conflict, an unreadable
-ancestor or invalid merged JSON drops the run with a summary; a push
-rejected while main stood still is an error. A rejection after main moved
-drops the stale run so the next gate can measure again.
+any change made after the artifact's measured base outside the records
+paths — `.github/size-baseline.json`, `.github/comment-share.json` and
+`.github/ci-thresholds.json` are excluded from that check — because a clean
+merge could otherwise land a size record below the file's real count, and
+tighten never raises one. Records-only edits survive into a three-way merge
+of each records file against that base. A conflict, an unreadable ancestor
+or invalid merged JSON drops the run with a summary; a push rejected while
+main stood still is an error. A rejection after main moved drops the stale
+run so the next gate can measure again.
 
-The records move down only. A pull request that shrinks a recorded file
-lowers its record in the same PR (`require-tight: true` enforces this on
-request); growth is answered by relocating code into a new file or
-shrinking the file, never by raising the record.
+The size records move down only. A pull request that shrinks a recorded
+file lowers its record in the same PR (`require-tight: true` enforces this
+on request); growth is answered by relocating code into a new file or
+shrinking the file, never by raising the record. The coverage floor is the
+opposite: it only rises, and never on a dip — a measurement must clear the
+recorded one by more than the hysteresis before the floor moves at all.
 
 ## Commit messages
 

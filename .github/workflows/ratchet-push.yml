@@ -1,12 +1,13 @@
 name: ratchet push
 
-# The data-only push half of both records ratchets. The measuring jobs stay
-# keyless: tests gates the size records and comment share gates the
-# per-file comment-share records. Each stages data only when its records
-# tighten. The push lives HERE, a top-level workflow where environment:
-# main-push resolves, keyed on either gate run's completion.
+# The data-only push half of the records ratchets. The measuring jobs stay
+# keyless: tests gates the size records and the coverage floor, and comment
+# share gates the per-file comment-share records. Each stages data only
+# when its record tightens. The push lives HERE, a top-level workflow where
+# environment: main-push resolves, keyed on either gate run's completion.
 #
-# tests.yml stages ratchet-push only after its aggregate is green on main;
+# tests.yml stages ratchet-push only after its aggregate is green on main,
+# and ci-thresholds-ratchet from its measured cell on a main push;
 # comment-share.yml stages comment-share-ratchet only after its gate step
 # passes on a main push. This workflow lists the triggering run's
 # artifacts, downloads each one present, and pushes one records-only commit
@@ -80,16 +81,21 @@ jobs:
             | sort -u)"
           ratchet=false
           records=false
+          thresholds=false
           if printf '%s\n' "$names" | grep -qx 'ratchet-push'; then
             ratchet=true
           fi
           if printf '%s\n' "$names" | grep -qx 'comment-share-ratchet'; then
             records=true
           fi
+          if printf '%s\n' "$names" | grep -qx 'ci-thresholds-ratchet'; then
+            thresholds=true
+          fi
           echo "ratchet=$ratchet" >> "$GITHUB_OUTPUT"
           echo "records=$records" >> "$GITHUB_OUTPUT"
+          echo "thresholds=$thresholds" >> "$GITHUB_OUTPUT"
           any=false
-          if [ "$ratchet" = true ] || [ "$records" = true ]; then
+          if [ "$ratchet" = true ] || [ "$records" = true ] || [ "$thresholds" = true ]; then
             any=true
           fi
           echo "any=$any" >> "$GITHUB_OUTPUT"
@@ -116,6 +122,17 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
+      - name: Download the thresholds data
+        # Each gate has its own artifact name and measured base. This is
+        # also a cross-run download, capped by the job's actions: read.
+        if: steps.list.outputs.thresholds == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-thresholds-ratchet
+          path: ${{ runner.temp }}/thresholds-data
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
       - name: Push the ratchet commit to main
         if: steps.list.outputs.any == 'true'
         env:
@@ -123,6 +140,7 @@ jobs:
           SIZE_RATCHET_REPO: ${{ github.repository }}
           SIZE_RATCHET_RATCHET_SELECTED: ${{ steps.list.outputs.ratchet }}
           SIZE_RATCHET_RECORDS_SELECTED: ${{ steps.list.outputs.records }}
+          SIZE_RATCHET_THRESHOLDS_SELECTED: ${{ steps.list.outputs.thresholds }}
         run: |
           # Fail closed when the environment is missing its secret: with
           # no key there is nothing to authenticate the push with, and
@@ -139,6 +157,10 @@ jobs:
           fi
           if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/comment-share-data/comment-share.json" ]; then
             echo "artifact comment-share-ratchet is missing comment-share.json" >&2
+            exit 1
+          fi
+          if [ "$SIZE_RATCHET_THRESHOLDS_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/thresholds-data/ci-thresholds.json" ]; then
+            echo "artifact ci-thresholds-ratchet is missing ci-thresholds.json" >&2
             exit 1
           fi
           eval "$(ssh-agent -s)" >/dev/null
@@ -163,9 +185,10 @@ jobs:
           git -C "$scratch" remote add origin "$remote"
           git -C "$scratch" fetch --quiet origin main
           fetched="$(git -C "$scratch" rev-parse FETCH_HEAD)"
-          # Each gate stages only its own artifact, so a run carries one;
-          # the shared index would keep both updates if a run ever carried
-          # both. No source is checked out by read-tree.
+          # A run can stage several artifacts at once (the size records and
+          # the coverage floor ride the same tests run), and one shared
+          # index carries every arm's update. No source is checked out by
+          # read-tree.
           git -C "$scratch" read-tree "$fetched"
           # Each arm lands one records file: its artifact directory, its
           # path on main, and the measuring gate's name for the summary.
@@ -192,7 +215,7 @@ jobs:
               # repair it. Records-file edits alone are fine — the merge
               # below preserves them.
               if [ -n "$(git -C "$scratch" diff --name-only "$base" "$fetched" \
-                    -- ':!.github/size-baseline.json' ':!.github/comment-share.json')" ]; then
+                    -- ':!.github/size-baseline.json' ':!.github/comment-share.json' ':!.github/ci-thresholds.json')" ]; then
                 echo '::notice::Main moved under the measurement; the next main push measures again'
                 {
                   echo '### Dropped: main moved under the measurement'
@@ -240,6 +263,10 @@ jobs:
           if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ]; then
             land comment-share-data .github/comment-share.json comment-share
             landed="${landed:+$landed and }comment-share"
+          fi
+          if [ "$SIZE_RATCHET_THRESHOLDS_SELECTED" = true ]; then
+            land thresholds-data .github/ci-thresholds.json thresholds
+            landed="${landed:+$landed and }thresholds"
           fi
           tree="$(git -C "$scratch" write-tree)"
           if [ "$tree" = "$(git -C "$scratch" rev-parse "$fetched^{tree}")" ]; then
