@@ -28,8 +28,8 @@
     1113
   ],
   ".github/workflows/ratchet-push.yml": [
-    3840,
-    10263
+    3594,
+    10140
   ],
   ".github/workflows/scorecard.yml": [
     593,
@@ -60,8 +60,8 @@
     8405
   ],
   "scripts/ci/size_baseline.py": [
-    2569,
-    12236
+    2510,
+    12304
   ],
   "tests/commit_scopes.py": [
     6966,
