@@ -279,10 +279,12 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
     sizes = measure(root, entries, policy, recorded, records_path)
     if base_map is None:
         return _check_seed(head_map, sizes, policy)
-    # An exact head count for an unrecorded over-ceiling file is a seed.
+    # An exact head count for an unrecorded over-ceiling file is a seed
+    # only while the base map is empty: against any other base the file
+    # was bound by its ceiling, and a records edit cannot loosen that.
     seed_adds = {
         path for path, count in (head_map or {}).items()
-        if path not in base_map
+        if not base_map
         and (limit := policy.ceiling(path)) is not None
         and sizes.get(path, 0) > limit
         and count == sizes.get(path)

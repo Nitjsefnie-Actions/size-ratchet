@@ -280,3 +280,32 @@ def test_an_empty_recorded_file_is_neither_absent_nor_ignored(tmp_path):
                     extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
     assert done.returncode == 1
     assert '- src/e.py: recorded 0' in done.stderr
+
+
+def test_an_added_entry_on_a_nonempty_base_is_refused(tmp_path):
+    # Seeds happen only against an empty base map: against any other base
+    # the file was bound by its ceiling, and a records edit in the head
+    # cannot loosen the gate by recording a new file at its real size.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600})
+    base = put_records(repo, {'src/x.py': 600})
+    add_and_commit(repo, 'src/huge.py', 'h\n' * 2000, 'add a huge file')
+    put_records(repo, {'src/x.py': 600, 'src/huge.py': 2000})
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert 'src/huge.py: 2000 lines above its ceiling of 500' in done.stderr
+    assert '- src/huge.py: recorded 2000' in done.stderr
+
+
+def test_a_grown_unrecorded_file_cannot_record_itself(tmp_path):
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n' * 400})
+    base = put_records(repo, {'src/x.py': 600})
+    add_and_commit(repo, 'src/y.py', 'b\n' * 900, 'grow y past the ceiling')
+    put_records(repo, {'src/x.py': 600, 'src/y.py': 900})
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert 'src/y.py: 900 lines above its ceiling of 500' in done.stderr
+    assert '- src/y.py: recorded 900' in done.stderr
