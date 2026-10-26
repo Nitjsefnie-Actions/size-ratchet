@@ -7,8 +7,7 @@ file does not end in ``\\n``. A file's ceiling is the first that applies of
 an override (longest matching ``<folder>/`` prefix), a per-type ceiling, and
 the built-in default; an untyped file has no ceiling and is never measured
 unless it has a record or ``unclassified: fail`` asks for it. A recorded
-number is never raised and no entry is ever added by hand: growth is
-answered by relocating code into a new file, or by shrinking the file.
+number is never raised and no entry is ever added by hand.
 
 Exit statuses: 0 pass, 1 violation, 2 configuration or environment failure."""
 from __future__ import annotations
@@ -274,8 +273,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         raise ValueError('input base-ref is empty and check needs it: pass '
                          'the revision whose records bind this check')
     base_map = records.read_map_at(root, base_ref, records_path, member)
-    # Measure every path either side records; a head records edit must not
-    # take a file out of measurement.
+    # Measure every path either side records; a head edit must not
+    # unmeasure a file.
     recorded = set(base_map or {}) | set(head_map or {})
     sizes = measure(root, entries, policy, recorded, records_path)
     if base_map is None:
@@ -308,24 +307,29 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
             print(f'::notice::{path}: stale ({STALE_REASONS[state[0]]}); '
                   f'{_stale_detail(state[1])}')
     if require_tight:
-        # Untouched entries stay with the stale report.
+        head_entries = head_map or {}
         base_sizes = measure(root, list_tree(root, base_ref), policy,
                              base_map, records_path)
-        touched = _changed_entries(base_sizes, sizes, base_map, head_map)
+        touched = _changed_entries(base_sizes, sizes, base_map, head_entries)
+        # An input-caused exclusion is the pull request's change; a
+        # ceiling-raise graduation stays a notice (see the issue).
+        touched |= {path for path, state in
+                    record_states(sizes, base_map, policy).items()
+                    if state[0] == 'excluded'}
         required = tightened(base_map, sizes, policy)
         required = dict(base_map) if required is None else dict(required)
         for path in seed_adds:
-            required[path] = head_map[path]
+            required[path] = head_entries[path]
         scoped = {
-            path for path in set(required) | set(head_map or {})
+            path for path in set(required) | set(head_entries)
             if path in touched
-            and head_map.get(path, _MISSING) != required.get(path, _MISSING)
+            and head_entries.get(path, _MISSING) != required.get(path, _MISSING)
         }
         if scoped:
             failures.append('require-tight: entries this pull request '
                             'changes must be tight, and these are not:')
             failures.extend('  ' + line for line in
-                            _diff_report_subset(required, head_map or {},
+                            _diff_report_subset(required, head_entries,
                                                 scoped))
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
