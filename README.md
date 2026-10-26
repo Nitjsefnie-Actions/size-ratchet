@@ -19,7 +19,7 @@ tag is a moving pointer — so pin the release's commit and keep the
 `# vX.Y.Z` comment beside it, as the block below does for the latest
 release. The file may also be one a consumer's own workflow already calls
 as a reusable workflow: the `workflow_call` trigger below makes that
-adoption an overwrite of that file too (see Called runs).
+adoption an overwrite of that file too.
 
 ```yaml
 name: size baseline
@@ -76,25 +76,26 @@ a push to the repository's actual default branch it verifies the records
 are exactly what tighten would write over that tree — every entry the
 default branch holds loose is named. Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
-closed and name the event. Force `check` or `tighten` for a manual
-workflow. A forced check must supply `base-ref` when the event has no PR
-base SHA.
+closed and name the event. A `mode: check` forced by editing the block
+must supply `base-ref` when the event has no PR base SHA.
 
-A consumer whose aggregate workflow calls `.github/workflows/size-baseline.yml`
-with `uses:` adopts by saving the block over that
-file: no other workflow edit and no ruleset change, and the size leg
-stays inside the required aggregate. A called run sees the caller's
-event: on the caller's `pull_request` it checks the pull request, on a
-caller push to the default branch it verifies the records, and on any
-other caller event the job completes green without measuring, so a fold
-that requires the calling job reports. A consumer that calls the block
-also gets the block's own standalone run for the same events; both run
-the same check on the same tree. A standalone run shares its group with
-its own ref's earlier run and replaces a superseded one; a called run
-takes the run's own group (`github.run_id`), so no other run of the
-block cancels it or queues it. A caller workflow literally named
-`size baseline` would share the standalone group — name it anything
-else.
+A consumer whose aggregate workflow calls
+`.github/workflows/size-baseline.yml` with `uses:` adopts by saving the
+block over that file: no other workflow edit and no ruleset change, and
+the size leg stays inside the required aggregate. A called run sees the
+caller's event: on the caller's `pull_request` it checks the pull
+request, on a caller push to the default branch it verifies the
+records, and on any other caller event the job completes green without
+measuring, so a fold that requires the calling job reports. A consumer
+that calls the block also gets the block's own standalone run for the
+same events; both run the same check on the same tree. A standalone run
+shares its group with its own ref's earlier run and replaces a
+superseded one. A called run takes the calling run's group
+(`github.run_id` is the caller's run id), so no other run of the block,
+in either arm, shares it unless one caller run invokes the block more
+than once — those invocations share a group and can cancel or queue
+each other. A caller workflow named `size baseline`, in any letter
+case, would also share the standalone group — name it anything else.
 
 Records are tightened in pull requests, never delivered by a job:
 `require-tight` is on by default, so a pull request that shrinks, deletes

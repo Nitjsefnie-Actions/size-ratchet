@@ -81,7 +81,7 @@ def eval_expression(text, github):
             for index, value in enumerate(arguments):
                 template = template.replace('{%d}' % index, str(value))
             return template
-        if token.startswith('github'):
+        if token == 'github' or token.startswith('github.'):
             value = github
             for part in token.split('.')[1:]:
                 value = (value or {}).get(part) if isinstance(value, dict) \
@@ -89,13 +89,18 @@ def eval_expression(text, github):
             return value
         raise AssertionError(f'unrecognized token {token!r} in {text!r}')
 
+    def equal(left, right):
+        # GitHub ignores case when comparing strings.
+        if isinstance(left, str) and isinstance(right, str):
+            return left.lower() == right.lower()
+        return left == right
+
     def comparison():
         value = primary()
         while peek() in ('==', '!='):
             operator = take()
-            right = primary()
-            value = (value == right) if operator == '==' \
-                else (value != right)
+            value = equal(value, primary()) if operator == '==' \
+                else not equal(value, primary())
         return value
 
     def conjunction():
@@ -177,6 +182,11 @@ def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
     assert eval_expression(group, called) != eval_expression(group, later_called)
     assert eval_expression(
         group, {'workflow': 'size baseline', 'ref': 'refs/heads/master'}) == \
+        'size-baseline-refs/heads/master'
+    # GitHub string equality ignores case: a caller named Size Baseline
+    # takes the standalone group too, which is the caveat the README names.
+    assert eval_expression(
+        group, {'workflow': 'Size Baseline', 'ref': 'refs/heads/master'}) == \
         'size-baseline-refs/heads/master'
     assert install_block()['concurrency']['cancel-in-progress'] is True
 
