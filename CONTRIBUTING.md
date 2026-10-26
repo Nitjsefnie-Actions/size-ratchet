@@ -98,20 +98,15 @@ there.
   check between steps, or a security invariant enumerated over all
   workflows, is fine.
 
-## Tighten this repository's records
+## Records
 
-Every records file tightens on every default-branch push. After the
-aggregate gate is green on main, the tests workflow's `ratchet` job runs the
-local action in tighten mode. Only a changed `.github/size-baseline.json`
-stages a `ratchet-push` artifact, together with the measured run's head SHA.
-The comment share workflow does the same for `.github/comment-share.json`:
-after its gate passes on a main push, a changed file stages a
-`comment-share-ratchet` artifact with its own measured head SHA. The tests
-workflow's measured cell raises the coverage floor the same way: when the
-measured total clears the recorded one by more than the hysteresis, the
-ratchet script stages a `ci-thresholds-ratchet` artifact carrying a raised
-`.github/ci-thresholds.json` and the measured head SHA, and a lower or
-barely-better measurement stages nothing.
+The comment-share records and the coverage floor tighten on every
+default-branch push. After the aggregate gate is green on main, the
+comment share workflow's gate step stages a `comment-share-ratchet`
+artifact when `.github/comment-share.json` changed, and the tests
+workflow's measured cell stages a `ci-thresholds-ratchet` artifact when
+the measured coverage total clears the recorded one by more than the
+hysteresis (a lower or barely-better measurement stages nothing).
 
 The separate top-level [ratchet-push workflow](.github/workflows/ratchet-push.yml)
 lands the result. It admits only successful main push runs of the gate
@@ -125,21 +120,26 @@ artifact, so the chain stops there.
 
 When main has moved, the push job drops the run outright when main carries
 any change made after the artifact's measured base outside the records
-paths — `.github/size-baseline.json`, `.github/comment-share.json` and
-`.github/ci-thresholds.json` are excluded from that check — because a clean
-merge could otherwise land a size record below the file's real count, and
-tighten never raises one. Records-only edits survive into a three-way merge
-of each records file against that base. A conflict, an unreadable ancestor
-or invalid merged JSON drops the run with a summary; a push rejected while
-main stood still is an error. A rejection after main moved drops the stale
-run so the next gate can measure again.
+paths — `.github/comment-share.json` and `.github/ci-thresholds.json` are
+excluded from that check — because a clean merge could otherwise land a
+record below the file's real count, and tighten never raises one.
+Records-only edits survive into a three-way merge of each records file
+against that base. A conflict, an unreadable ancestor or invalid merged
+JSON drops the run with a summary; a push rejected while main stood still
+is an error. A rejection after main moved drops the stale run so the next
+gate can measure again.
 
-The size records move down only. A pull request that shrinks a recorded
-file lowers its record in the same PR (`require-tight: true` enforces this
-on request); growth is answered by relocating code into a new file or
-shrinking the file, never by raising the record. The coverage floor is the
-opposite: it only rises, and never on a dip — a measurement must clear the
-recorded one by more than the hysteresis before the floor moves at all.
+The size records are different: they move in pull requests, never by
+delivery. The size-baseline job runs the README install block as written,
+so `require-tight` is on and scoped — a pull request that shrinks,
+deletes or graduates a recorded file lowers or drops that entry in the
+same pull request, and the size records never ride a push workflow. The
+default-branch run verifies the records are already tight and reports
+every entry that is not. Growth is answered by relocating code into a new
+file or shrinking the file, never by raising the record. The coverage
+floor is the opposite: it only rises, and never on a dip — a measurement
+must clear the recorded one by more than the hysteresis before the floor
+moves at all.
 
 ## Commit messages
 
