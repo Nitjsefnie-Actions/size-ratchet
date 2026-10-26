@@ -80,7 +80,7 @@ def read_blobs(root, wanted):
 
     One ``git cat-file --batch`` process reads every blob; git flushes
     after each request, so the reader never waits on output git has not
-    produced. A blob git cannot produce raises naming the path.
+    produced.
     """
     if not wanted:
         return
@@ -112,9 +112,8 @@ def read_blobs(root, wanted):
 
 def measure(root, entries, policy, recorded, records_path=None):
     """{path: lines} for the files this run judges: typed and unexcluded,
-    or recorded, or unexcluded under unclassified: fail. Binaries and
-    non-regular blobs are never judged. The records file itself is never
-    judged: it is the gate's own data, not source.
+    or recorded, or unexcluded under unclassified: fail. The records file
+    itself is never judged: it is the gate's own data, not source.
     """
     recorded = set(recorded or ())
     unclassified = policy.unclassified == 'fail'
@@ -194,8 +193,7 @@ def tightened(baseline, sizes, policy):
     ``baseline`` of ``None`` seeds every typed, unexcluded file over its
     ceiling at its current count; otherwise each record lowers to its
     file's count, dropping deleted, excluded and graduated files, and an
-    untyped file's record is kept, lowered. A record is never raised and
-    no entry is ever added except when seeding."""
+    untyped file's record is kept, lowered."""
     if baseline is None:
         return {
             path: count
