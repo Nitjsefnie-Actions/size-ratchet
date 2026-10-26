@@ -33,19 +33,152 @@ def block_with_inputs():
             and 'size-ratchet' in step['uses']][0]['with']
 
 
+BLOCK_IF = ("github.event_name == 'pull_request' || "
+            "(github.event_name == 'push' && github.ref_type == 'branch' && "
+            'github.ref_name == github.event.repository.default_branch)')
+
+
+def block_step_if():
+    """The block's measurability condition, carried by both steps."""
+    steps = install_block()['jobs']['size-baseline']['steps']
+    ifs = [step.get('if') for step in steps]
+    assert len(ifs) == 2 and ifs[0] == ifs[1] and ifs[0]
+    return ifs[0]
+
+
+def eval_expression(text, github):
+    """Evaluate the subset of GitHub expressions the block uses; anything
+    the grammar does not name is refused, never empty-matched."""
+    tokens = re.findall(
+        r'\(|\)|,|==|!=|&&|\|\||\'[^\']*\'|[A-Za-z_][\w.]*|\d+', text)
+    position = 0
+
+    def peek():
+        return tokens[position] if position < len(tokens) else None
+
+    def take():
+        nonlocal position
+        token = tokens[position]
+        position += 1
+        return token
+
+    def primary():
+        token = take()
+        if token == '(':
+            value = disjunction()
+            assert take() == ')'
+            return value
+        if token.startswith("'"):
+            return token[1:-1]
+        if token == 'format':
+            assert take() == '('
+            template = primary()
+            arguments = []
+            while peek() == ',':
+                take()
+                arguments.append(primary())
+            assert take() == ')'
+            for index, value in enumerate(arguments):
+                template = template.replace('{%d}' % index, str(value))
+            return template
+        if token.startswith('github'):
+            value = github
+            for part in token.split('.')[1:]:
+                value = (value or {}).get(part) if isinstance(value, dict) \
+                    else None
+            return value
+        raise AssertionError(f'unrecognized token {token!r} in {text!r}')
+
+    def comparison():
+        value = primary()
+        while peek() in ('==', '!='):
+            operator = take()
+            right = primary()
+            value = (value == right) if operator == '==' \
+                else (value != right)
+        return value
+
+    def conjunction():
+        # Parsed eagerly, then GitHub's value semantics applied: && keeps
+        # the right operand when the left is truthy, || the first truthy.
+        value = comparison()
+        while peek() == '&&':
+            take()
+            right = comparison()
+            value = right if value else False
+        return value
+
+    def disjunction():
+        value = conjunction()
+        while peek() == '||':
+            take()
+            right = conjunction()
+            value = value if value else right
+        return value
+
+    value = disjunction()
+    assert position == len(tokens), f'unparsed tail in {text!r}'
+    return value
+
+
+def run_block_as_called(repo, event, ref, payload, workflow='ci-gate'):
+    """Drive the block as a caller's run would; returns (steps that ran,
+    the gate's result or None)."""
+    block = install_block()
+    assert 'workflow_call' in block[True], 'the block is no longer callable'
+    github_context = {
+        'workflow': workflow, 'event_name': event, 'ref': ref,
+        'ref_type': {'heads': 'branch', 'tags': 'tag'}.get(
+            ref[len('refs/'):].partition('/')[0], 'unknown'),
+        'ref_name': ref[len('refs/'):].partition('/')[2],
+        'event': payload, 'run_id': '3699691921',
+    }
+    ran, result = 0, None
+    for step in block['jobs']['size-baseline']['steps']:
+        if 'if' in step and not eval_expression(step['if'], github_context):
+            continue
+        ran += 1
+        if 'size-ratchet' in step.get('uses', ''):
+            result = run_gate(
+                repo, block_with_inputs()['mode'],
+                base_ref=payload.get('pull_request', {}).get('base', {})
+                .get('sha'),
+                default_branch=payload['repository']['default_branch'],
+                extra_env={'GITHUB_EVENT_NAME': event, 'GITHUB_REF': ref,
+                           'GITHUB_WORKFLOW': workflow})
+    return ran, result
+
+
 def test_the_block_resolves_the_default_branch_at_run_time():
     block = install_block()
     job = block['jobs']['size-baseline']
-    assert job.get('if') == ("github.event_name == 'pull_request' || "
-                             "(github.ref_type == 'branch' && "
-                             'github.ref_name == '
-                             'github.event.repository.default_branch)')
+    assert 'if' not in job, 'the measurability condition lives on the steps'
+    assert block_step_if() == BLOCK_IF
     trigger = block[True]
-    assert sorted(trigger) == ['pull_request', 'push']
-    # An unfiltered trigger: `push:` carries no branch or tag filter, so
-    # the job `if` above is what resolves the default branch.
+    assert sorted(trigger) == ['pull_request', 'push', 'workflow_call']
+    # An unfiltered trigger: the steps' `if` resolves the default branch.
     assert trigger['push'] in (None, {})
     assert trigger['pull_request'] in (None, {})
+    assert trigger['workflow_call'] in (None, {})
+
+
+def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
+    # Item 3: no other run of the block cancels a called run.
+    standalone_pr = {'workflow': 'size baseline', 'ref': 'refs/pull/5/merge'}
+    called = {'workflow': 'ci-gate', 'ref': 'refs/pull/5/merge',
+              'run_id': '3699691921'}
+    later_called = {'workflow': 'ci-gate', 'ref': 'refs/pull/5/merge',
+                    'run_id': '3699698649'}
+    group = install_block()['concurrency']['group']
+    assert eval_expression(group, standalone_pr) == \
+        'size-baseline-refs/pull/5/merge'
+    assert eval_expression(group, called) == 'size-baseline-called-3699691921'
+    assert eval_expression(group, standalone_pr) != eval_expression(group, called)
+    assert eval_expression(group, called) != eval_expression(group, later_called)
+    assert eval_expression(
+        group, {'workflow': 'size baseline', 'ref': 'refs/heads/master'}) == \
+        'size-baseline-refs/heads/master'
+    assert install_block()['concurrency']['cancel-in-progress'] is True
 
 
 def test_the_block_matches_the_action_defaults():
@@ -61,10 +194,12 @@ def test_the_own_gate_mirrors_the_block():
     tests_yml = yaml.safe_load(
         (ACTION_ROOT / '.github' / 'workflows' / 'tests.yml').read_text())
     job = tests_yml['jobs']['size-baseline']
+    assert 'if' not in job
+    assert [step.get('if') for step in job['steps']] == \
+        [step.get('if') for step in
+         install_block()['jobs']['size-baseline']['steps']]
     own = [step for step in job['steps'] if step.get('uses') == './'][0]
     assert own['with'] == block_with_inputs()
-    assert job.get('if') == \
-        install_block()['jobs']['size-baseline'].get('if')
     checkout = [step for step in job['steps']
                 if step.get('uses', '').startswith('actions/checkout')][0]
     block_checkout = [step for step in install_block()['jobs']
@@ -157,6 +292,53 @@ def test_a_push_to_another_branch_never_reaches_the_gate(tmp_path):
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/feature'})
     assert done.returncode == 2
     assert 'cannot handle event' in done.stderr
+
+
+# --- the block as a called reusable workflow -----------------------------
+
+
+def test_a_called_pull_request_runs_the_check_a_direct_run_runs(tmp_path):
+    # Item 6, the caller on a pull request: the called leg checks the
+    # pull request, the same check the block's own pull-request run does.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
+    base = put_records(repo, {'src/x.py': 600})
+    add_and_commit(repo, 'src/x.py', 'a\n' * 550, 'shrink x')
+    ran, done = run_block_as_called(
+        repo, 'pull_request', 'refs/pull/5/merge',
+        {'pull_request': {'base': {'sha': base}, 'head': {'sha': head(repo)}},
+         'repository': {'default_branch': 'master'}})
+    assert ran == 2
+    assert done.returncode == 1
+    assert '~ src/x.py: required 550, recorded 600' in done.stderr
+
+
+def test_a_called_default_branch_push_runs_the_verification(tmp_path):
+    # Item 6, the caller on a default-branch push: the leg verifies,
+    # exactly as the block's own default-branch run does.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 500})
+    put_records(repo, {'src/x.py': 550})
+    ran, done = run_block_as_called(
+        repo, 'push', 'refs/heads/master',
+        {'repository': {'default_branch': 'master'}})
+    assert ran == 2
+    assert done.returncode == 1
+    assert 'records are loose' in done.stderr
+
+
+def test_a_called_leg_on_any_other_caller_event_reports_success(tmp_path):
+    # Item 2: the fold accepts the leg on every caller event. On an
+    # event neither arm measures the steps skip and the job goes green
+    # without running the action, whose auto mode would fail closed.
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n'})
+    for event, ref in [('push', 'refs/heads/feature'),
+                       ('workflow_dispatch', 'refs/heads/master'),
+                       ('workflow_dispatch', 'refs/heads/feature')]:
+        ran, done = run_block_as_called(
+            repo, event, ref, {'repository': {'default_branch': 'master'}})
+        assert ran == 0, (event, ref)
+        assert done is None
 
 
 def test_an_exact_seed_entry_the_head_adds_is_accepted(tmp_path):
