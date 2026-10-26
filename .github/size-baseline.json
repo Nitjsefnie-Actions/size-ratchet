@@ -1,4 +1,6 @@
 {
   "schema_version": 1,
-  "baseline": {}
+  "baseline": {
+    "tests/gate_base_freshness.py": 627
+  }
 }
