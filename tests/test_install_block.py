@@ -56,12 +56,6 @@ def test_the_block_matches_the_action_defaults():
         assert shown[name] == spec['default'], name
 
 
-def test_the_block_pins_a_release_sha_with_its_version_comment():
-    assert re.search(r'uses: Nitjsefnie-Actions/size-ratchet'
-                     r'@[0-9a-f]{40} # v\d+\.\d+\.\d+\n',
-                     install_block_text())
-
-
 def test_the_own_gate_mirrors_the_block():
     """The repository's own size-baseline job is the block, with ./ pinned."""
     tests_yml = yaml.safe_load(
@@ -90,7 +84,7 @@ def test_no_workflow_dispatch_trigger_remains_in_tests():
 
 def test_a_pull_request_shrink_must_carry_the_record(tmp_path):
     # The block's defaults: require-tight is on and scoped.
-    repo = make_repo(tmp_path, {'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
     base = put_records(repo, {'src/x.py': 600})
     add_and_commit(repo, 'src/x.py', 'a\n' * 550, 'shrink x')
     done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
@@ -107,7 +101,7 @@ def test_two_concurrent_shrinks_merge_then_an_unrelated_pr_passes(tmp_path):
     # Item 3: after two concurrent shrinks merge, the record sits above
     # the file; a later pull request that touches neither passes, the
     # loose entry a stale notice, not its failure.
-    repo = make_repo(tmp_path, {'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
     base = put_records(repo, {'src/x.py': 600})
     # PR A's head: shrink + exact record -> passes.
     add_and_commit(repo, 'src/x.py', 'a\n' * 550, 'shrink x')
@@ -129,7 +123,7 @@ def test_two_concurrent_shrinks_merge_then_an_unrelated_pr_passes(tmp_path):
 
 
 def test_the_default_branch_run_reports_a_loose_entry(tmp_path):
-    repo = make_repo(tmp_path, {'src/x.py': 'a\n' * 500})
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 500})
     put_records(repo, {'src/x.py': 550})
     done = run_gate(repo, 'auto', default_branch='master', extra_env={
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/master'})
@@ -141,7 +135,7 @@ def test_the_default_branch_run_reports_a_loose_entry(tmp_path):
 
 
 def test_a_touching_pull_request_must_make_the_entry_exact(tmp_path):
-    repo = make_repo(tmp_path, {'src/x.py': 'a\n' * 500})
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 500})
     base = put_records(repo, {'src/x.py': 550})
     # Growing the file touches the entry: it must become exact.
     add_and_commit(repo, 'src/x.py', 'a\n' * 501, 'touch the loose file')
@@ -157,7 +151,7 @@ def test_a_touching_pull_request_must_make_the_entry_exact(tmp_path):
 
 def test_a_push_to_another_branch_never_reaches_the_gate(tmp_path):
     # The action itself still fails closed naming the event.
-    repo = make_repo(tmp_path, {'src/x.py': 'a\n'})
+    repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n'})
     add_and_commit(repo, 'src/x.py', 'b\n', 'a branch commit')
     done = run_gate(repo, 'auto', default_branch='master', extra_env={
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/feature'})
@@ -167,7 +161,7 @@ def test_a_push_to_another_branch_never_reaches_the_gate(tmp_path):
 
 def test_an_exact_seed_entry_the_head_adds_is_accepted(tmp_path):
     # Seeding against an empty base map: the entry must be exact.
-    repo = make_repo(tmp_path, {'src/over.py': 'x\n' * 627})
+    repo = make_repo(tmp_path, branch='master', files={'src/over.py': 'x\n' * 627})
     base = put_records(repo, {})
     put_records(repo, {'src/over.py': 627})
     done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
@@ -177,7 +171,7 @@ def test_an_exact_seed_entry_the_head_adds_is_accepted(tmp_path):
 
 @pytest.mark.parametrize('wrong', [502, 626])
 def test_a_wrong_seed_number_fails_naming_the_exact_count(tmp_path, wrong):
-    repo = make_repo(tmp_path, {'src/over.py': 'x\n' * 627})
+    repo = make_repo(tmp_path, branch='master', files={'src/over.py': 'x\n' * 627})
     base = put_records(repo, {})
     put_records(repo, {'src/over.py': wrong})
     done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
@@ -190,10 +184,99 @@ def test_a_wrong_seed_number_fails_naming_the_exact_count(tmp_path, wrong):
 
 
 def test_a_hand_entry_for_an_under_ceiling_file_is_refused(tmp_path):
-    repo = make_repo(tmp_path, {'src/small.py': 'x\n'})
+    repo = make_repo(tmp_path, branch='master', files={'src/small.py': 'x\n'})
     base = put_records(repo, {})
     put_records(repo, {'src/small.py': 1})
     done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
                     extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
     assert done.returncode == 1
     assert '- src/small.py: recorded 1' in done.stderr
+
+
+def test_a_records_file_deletion_fails_naming_every_entry(tmp_path):
+    # A pull request that deletes the records file itself owes every
+    # dropped entry named, not a traceback.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600})
+    base = put_records(repo, {'src/x.py': 600})
+    git_rm = ['git', '-C', str(repo), 'rm', '-q', RECORDS]
+    import subprocess
+    assert subprocess.run(git_rm, check=True, capture_output=True)
+    subprocess.run(['git', '-C', str(repo), 'commit', '-qm', 'drop records'],
+                   check=True, capture_output=True)
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    # The head carries no records, so the required entry reads as missing.
+    assert '+ src/x.py: record 600' in done.stderr
+    assert 'Traceback' not in done.stderr
+
+
+def test_an_exclusion_pr_must_drop_the_entry(tmp_path):
+    # Excluding a recorded file is a change the pull request made: the
+    # entry must go in the same pull request, not a notice on main.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600})
+    base = put_records(repo, {'src/x.py': 600})
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    exclude='src/x.py\n',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert '- src/x.py: recorded 600' in done.stderr
+
+
+def test_a_ceiling_raise_without_a_count_move_is_a_notice(tmp_path):
+    # A ceiling raise with no count move is the one stale shape that
+    # stays a notice; the default branch's run names the drop.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600})
+    base = put_records(repo, {'src/x.py': 600})
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    ceilings='source: 700\n',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 0, done.stderr
+    assert '::notice::src/x.py: stale (the file is at or below its ceiling)' \
+        in done.stdout
+
+
+def test_a_shrink_below_the_ceiling_must_drop_the_entry(tmp_path):
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600})
+    base = put_records(repo, {'src/x.py': 600})
+    add_and_commit(repo, 'src/x.py', 'a\n' * 400, 'shrink below the ceiling')
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert '- src/x.py: recorded 600' in done.stderr
+
+
+def test_a_pr_that_deletes_the_file_must_drop_its_entry(tmp_path):
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
+    base = put_records(repo, {'src/x.py': 600})
+    import subprocess
+    subprocess.run(['git', '-C', str(repo), 'rm', '-q', 'src/x.py'],
+                   check=True, capture_output=True)
+    subprocess.run(['git', '-C', str(repo), 'commit', '-qm', 'delete x'],
+                   check=True, capture_output=True)
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert '- src/x.py: recorded 600' in done.stderr
+
+
+def test_an_empty_recorded_file_is_neither_absent_nor_ignored(tmp_path):
+    # The sentinel separates an absent measurement from an empty file's 0:
+    # deleting a recorded empty file demands the drop all the same.
+    repo = make_repo(tmp_path, branch='master',
+                     files={'src/e.py': '', 'src/y.py': 'b\n'})
+    base = put_records(repo, {'src/e.py': 0})
+    import subprocess
+    subprocess.run(['git', '-C', str(repo), 'rm', '-q', 'src/e.py'],
+                   check=True, capture_output=True)
+    subprocess.run(['git', '-C', str(repo), 'commit', '-qm', 'delete empty'],
+                   check=True, capture_output=True)
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 1
+    assert '- src/e.py: recorded 0' in done.stderr

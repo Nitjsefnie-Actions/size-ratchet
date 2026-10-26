@@ -73,8 +73,11 @@ def test_stale_warn_prints_a_notice_and_passes(tmp_path):
     # The stale record sits on the base: the pull request is not the
     # shrinker, so scoped require-tight leaves the entry to the stale
     # report and the run passes with the notice.
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 300})
-    base = put_records(repo, {'src/a.py': 480})
+    # 550 stays over the ceiling, so the verdict is shrunk, not
+    # graduated: a graduation without a count move is the ceiling-raise
+    # shape pinned in test_install_block.
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 550})
+    base = put_records(repo, {'src/a.py': 600})
     add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
     done = run_gate(repo, 'check', base_ref=base)
     assert done.returncode == 0, done.stderr
@@ -82,8 +85,8 @@ def test_stale_warn_prints_a_notice_and_passes(tmp_path):
 
 
 def test_stale_fail_fails(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 300})
-    base = put_records(repo, {'src/a.py': 480})
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 550})
+    base = put_records(repo, {'src/a.py': 600})
     add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
     done = run_gate(repo, 'check', base_ref=base, stale='fail')
     assert done.returncode == 1

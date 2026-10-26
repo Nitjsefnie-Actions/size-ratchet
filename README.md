@@ -75,10 +75,14 @@ workflow. A forced check must supply `base-ref` when the event has no PR
 base SHA.
 
 Records are tightened in pull requests, never delivered by a job:
-`require-tight` is on by default, so a pull request that shrinks,
-deletes, excludes or graduates a recorded file fails until that entry in
-the same pull request says what tighten would write — lowered, or
-dropped. The default branch holds no job that commits records. For
+`require-tight` is on by default, so a pull request that shrinks, deletes
+or excludes a recorded file — or graduates one by shrinking it below its
+ceiling — fails until that entry in the same pull request says what
+tighten would write — lowered, or dropped. A ceiling the pull request
+raises without moving a count is the one shape that stays a stale notice,
+named by the default branch's run until the next touching pull request
+drops the entry. The default branch holds no job that commits records.
+For
 initial adoption, run tighten on the proposed head and commit the seed
 in the adoption PR (see Seeding).
 
@@ -173,15 +177,19 @@ map is records. Ceilings live only in `with:`.
   the file.
 
 **Check** compares the head tree against the baseline read at `base-ref`,
-so a records edit in the head does not loosen the gate. Each failure names
+so a records edit in the head does not loosen the gate. With
+`require-tight` on it measures the base tree as well, so the base's
+counts bind the comparison. Each failure names
 the path, its measured lines, and the record or ceiling it exceeded. A
 recorded entry whose file shrank, was deleted, was excluded, or is at or
 below its ceiling is **stale**: `stale: warn` reports it as a notice;
 `stale: fail` fails the run. `require-tight` (on by default) also fails
 when an entry the pull request changes — its file's count moved between
 the base and head trees, or its record moved between the base and head
-maps — differs from what tighten would write, naming each differing entry
-as `lowered to N` or `dropped`. Entries the pull request leaves untouched
+maps — differs from what tighten would write, naming each entry and what
+it should become: a record to lower prints `required N` against the
+recorded value, and a record to drop prints `recorded M` alone. Entries
+the pull request leaves untouched
 stay with the stale report: a loose record already on the base never
 fails unrelated work. An entry the head adds for an unrecorded
 over-ceiling file must be that file's exact head count — the same
