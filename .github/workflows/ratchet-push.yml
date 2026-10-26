@@ -1,17 +1,18 @@
 name: ratchet push
 
 # The data-only push half of the records ratchets. The measuring jobs stay
-# keyless: tests gates the size records and the coverage floor, and comment
-# share gates the per-file comment-share records. Each stages data only
-# when its record tightens. The push lives HERE, a top-level workflow where
-# environment: main-push resolves, keyed on either gate run's completion.
+# keyless: tests gates the coverage floor, and comment share gates the
+# per-file comment-share records. The size records moved into the pull
+# requests that change the files (the install block's require-tight), so
+# no size arm remains here. Each stages data only when its record moves.
+# The push lives HERE, a top-level workflow where environment: main-push
+# resolves, keyed on either gate run's completion.
 #
-# tests.yml stages ratchet-push only after its aggregate is green on main,
-# and ci-thresholds-ratchet from its measured cell on a main push;
-# comment-share.yml stages comment-share-ratchet only after its gate step
-# passes on a main push. This workflow lists the triggering run's
-# artifacts, downloads each one present, and pushes one records-only commit
-# when there is a change.
+# tests.yml stages ci-thresholds-ratchet from its measured cell on a main
+# push; comment-share.yml stages comment-share-ratchet only after its gate
+# step passes on a main push. This workflow lists the triggering run's
+# artifacts, downloads each one present, and pushes one records-only
+# commit when there is a change.
 #
 # THE GATE PROTECTS THE PUSH TWICE: only a fully green main gate stages data,
 # and only a completed successful push run reaches this job. No code is
@@ -79,39 +80,23 @@ jobs:
             "repos/$SIZE_RATCHET_REPO/actions/runs/$SIZE_RATCHET_RUN_ID/artifacts" \
             --jq '.artifacts[] | select(.expired != true) | .name' \
             | sort -u)"
-          ratchet=false
           records=false
           thresholds=false
-          if printf '%s\n' "$names" | grep -qx 'ratchet-push'; then
-            ratchet=true
-          fi
           if printf '%s\n' "$names" | grep -qx 'comment-share-ratchet'; then
             records=true
           fi
           if printf '%s\n' "$names" | grep -qx 'ci-thresholds-ratchet'; then
             thresholds=true
           fi
-          echo "ratchet=$ratchet" >> "$GITHUB_OUTPUT"
           echo "records=$records" >> "$GITHUB_OUTPUT"
           any=false
-          if [ "$ratchet" = true ] || [ "$records" = true ] || [ "$thresholds" = true ]; then
+          if [ "$records" = true ] || [ "$thresholds" = true ]; then
             any=true
           fi
           echo "any=$any" >> "$GITHUB_OUTPUT"
           # Emitted last so no three redirects to the same file sit
           # adjacent: shellcheck reads that as one foldable block (SC2129).
           echo "thresholds=$thresholds" >> "$GITHUB_OUTPUT"
-
-      - name: Download the size records
-        # Cross-run downloads must name the triggering run and carry a token
-        # capped by actions: read, rather than taking this workflow's run.
-        if: steps.list.outputs.ratchet == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ratchet-push
-          path: ${{ runner.temp }}/ratchet-data
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
 
       - name: Download the comment-share records
         # Each gate has its own artifact name and measured base. This is
@@ -140,7 +125,6 @@ jobs:
         env:
           SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
           SIZE_RATCHET_REPO: ${{ github.repository }}
-          SIZE_RATCHET_RATCHET_SELECTED: ${{ steps.list.outputs.ratchet }}
           SIZE_RATCHET_RECORDS_SELECTED: ${{ steps.list.outputs.records }}
           SIZE_RATCHET_THRESHOLDS_SELECTED: ${{ steps.list.outputs.thresholds }}
         run: |
@@ -153,10 +137,6 @@ jobs:
           fi
           # Absence of an artifact is the no-op signal; a selected artifact
           # without its promised JSON is a broken handoff, not a no-tighten.
-          if [ "$SIZE_RATCHET_RATCHET_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/ratchet-data/size-baseline.json" ]; then
-            echo "artifact ratchet-push is missing size-baseline.json" >&2
-            exit 1
-          fi
           if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/comment-share-data/comment-share.json" ]; then
             echo "artifact comment-share-ratchet is missing comment-share.json" >&2
             exit 1
@@ -187,10 +167,9 @@ jobs:
           git -C "$scratch" remote add origin "$remote"
           git -C "$scratch" fetch --quiet origin main
           fetched="$(git -C "$scratch" rev-parse FETCH_HEAD)"
-          # A run can stage several artifacts at once (the size records and
-          # the coverage floor ride the same tests run), and one shared
-          # index carries every arm's update. No source is checked out by
-          # read-tree.
+          # A run can stage several artifacts at once (both arms can ride
+          # the same tests run), and one shared index carries every arm's
+          # update. No source is checked out by read-tree.
           git -C "$scratch" read-tree "$fetched"
           # Each arm lands one records file: its artifact directory, its
           # path on main, and the measuring gate's name for the summary.
@@ -258,10 +237,6 @@ jobs:
             git -C "$scratch" update-index --add --cacheinfo 100644 "$blob" "$records"
           }
           landed=''
-          if [ "$SIZE_RATCHET_RATCHET_SELECTED" = true ]; then
-            land ratchet-data .github/size-baseline.json size
-            landed='size-baseline'
-          fi
           if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ]; then
             land comment-share-data .github/comment-share.json comment-share
             landed="${landed:+$landed and }comment-share"
