@@ -40,8 +40,9 @@ inputs:
     default: ''
   mode:
     description: >-
-      auto checks pull requests and tightens pushes to the default branch;
-      check or tighten forces one. Other events fail closed.
+      auto checks pull requests and verifies a push to the default branch
+      (the records must already be tight); check or tighten forces one.
+      Other events fail closed.
     required: false
     default: 'auto'
   base-ref:
@@ -56,10 +57,11 @@ inputs:
     default: 'warn'
   require-tight:
     description: >-
-      true also fails a check whose records differ from what tighten would
-      write over the head tree.
+      true (default) fails a check whose touched entries differ from what
+      tighten would write over the head tree; entries the pull request
+      leaves untouched stay a stale notice.
     required: false
-    default: 'false'
+    default: 'true'
 runs:
   using: composite
   steps:

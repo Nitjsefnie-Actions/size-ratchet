@@ -10,18 +10,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'ci'))
 import records  # noqa: E402
 
-from tests.helpers import add_and_commit, git, head, make_repo, run_gate  # noqa: E402
+from tests.helpers import (add_and_commit, head, make_repo, put_records,  # noqa: E402
+                           run_gate)
 
 BIG = '\n'.join(f'x{i} = {i}' for i in range(501)) + '\n'  # 501 lines
 OVER = '\n'.join(f'y{i} = {i}' for i in range(600)) + '\n'
 RECORDS = '.github/size-baseline.json'
-
-
-def put_records(repo, baseline, member='baseline'):
-    """Commit a records file holding ``baseline`` (a seed for the tree)."""
-    text = records.document_text(member, baseline)
-    add_and_commit(repo, RECORDS, text, 'carry the records seed')
-    return head(repo)
 
 
 def test_a_clean_tree_passes(tmp_path):
@@ -76,18 +70,21 @@ def test_unclassified_fail_names_the_file(tmp_path):
 
 
 def test_stale_warn_prints_a_notice_and_passes(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 400})
+    # The stale record sits on the base: the pull request is not the
+    # shrinker, so scoped require-tight leaves the entry to the stale
+    # report and the run passes with the notice.
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 300})
     base = put_records(repo, {'src/a.py': 480})
-    add_and_commit(repo, 'src/a.py', 'x\n' * 300, 'shrink the file')
+    add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
     done = run_gate(repo, 'check', base_ref=base)
     assert done.returncode == 0, done.stderr
     assert '::notice::src/a.py: stale' in done.stdout
 
 
 def test_stale_fail_fails(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 400})
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 300})
     base = put_records(repo, {'src/a.py': 480})
-    add_and_commit(repo, 'src/a.py', 'x\n' * 300, 'shrink the file')
+    add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
     done = run_gate(repo, 'check', base_ref=base, stale='fail')
     assert done.returncode == 1
     assert 'src/a.py: stale' in done.stderr
@@ -117,10 +114,13 @@ def test_an_unchanged_record_leaves_the_stale_ones_reported(tmp_path):
 
 
 def test_a_deleted_entry_is_stale(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 480})
+    # The deletion predates this pull request: the base already holds the
+    # entry for the missing file, so the entry is untouched and the
+    # deletion is a stale notice, not this pull request's failure. A pull
+    # request that deletes the file itself must drop the entry.
+    repo = make_repo(tmp_path, {'src/b.py': 'y\n'})
     base = put_records(repo, {'src/a.py': 480})
-    git(repo, 'rm', '-q', 'src/a.py')
-    git(repo, 'commit', '-qm', 'delete the file')
+    add_and_commit(repo, 'src/c.py', 'z\n', 'touch another file')
     done = run_gate(repo, 'check', base_ref=base)
     assert done.returncode == 0, done.stderr
     assert '::notice::src/a.py: stale' in done.stdout
@@ -138,10 +138,11 @@ def test_require_tight_accepts_the_exact_tighten_map(tmp_path):
 
 
 def test_require_tight_fails_naming_each_differing_entry(tmp_path):
-    # The seed stays at the recorded 600 while the tree shrank to 560:
-    # tighten-from-base writes 560, so the head records must move with it.
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 560})
+    # The base is tight at 600/600; the head commit shrinks the tree to 560
+    # without carrying the record, so the touched entry must fail.
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 600})
     base = put_records(repo, {'src/a.py': 600})
+    add_and_commit(repo, 'src/a.py', 'x\n' * 560, 'shrink the file')
     done = run_gate(repo, 'check', base_ref=base, require_tight='true')
     assert done.returncode == 1
     assert '~ src/a.py: required 560, recorded 600' in done.stderr
@@ -316,12 +317,38 @@ def test_auto_checks_a_pull_request(tmp_path):
     assert '495 lines above its record of 480' in done.stderr
 
 
-def test_auto_tightens_a_push_to_the_default_branch(tmp_path):
+def test_auto_verifies_a_push_to_the_default_branch(tmp_path):
+    # The default-branch run checks the records are already tight: a loose
+    # entry fails naming what tighten writes, and nothing is ever written.
+    repo = make_repo(tmp_path, {'src/big.py': 'x\n' * 500})
+    put_records(repo, {'src/big.py': 550})
+    done = run_gate(repo, 'auto', default_branch='main', extra_env={
+        'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'})
+    assert done.returncode == 1
+    # 500 is at the ceiling: the record graduates, so tighten writes a
+    # drop, not a lowering.
+    assert '- src/big.py: recorded 550' in done.stderr
+
+
+def test_auto_verify_passes_when_tight_and_writes_nothing(tmp_path):
+    repo = make_repo(tmp_path, {'src/big.py': BIG})
+    put_records(repo, {'src/big.py': 501})
+    before = (repo / RECORDS).read_bytes()
+    done = run_gate(repo, 'auto', default_branch='main', extra_env={
+        'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'})
+    assert done.returncode == 0, done.stderr
+    assert (repo / RECORDS).read_bytes() == before
+    assert 'records are tight' in done.stdout
+
+
+def test_auto_verify_without_records_passes(tmp_path):
+    # No records on the default branch: seeding happens in the adoption
+    # PR, and a push-side run has nothing to verify.
     repo = make_repo(tmp_path, {'src/big.py': BIG})
     done = run_gate(repo, 'auto', default_branch='main', extra_env={
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'})
     assert done.returncode == 0, done.stderr
-    assert (repo / RECORDS).exists()
+    assert not (repo / RECORDS).exists()
 
 
 @pytest.mark.parametrize('event,ref', [

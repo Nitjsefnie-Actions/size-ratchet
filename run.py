@@ -28,7 +28,7 @@ def env(name, default):
 
 
 def resolve_mode(requested):
-    """auto checks a pull request and tightens a push to the default branch.
+    """auto checks a pull request and verifies a push to the default branch.
 
     Every other event, including a push to another branch, fails closed and
     names the event.
@@ -41,7 +41,7 @@ def resolve_mode(requested):
         return 'check'
     if (event == 'push' and default
             and os.environ.get('GITHUB_REF') == f'refs/heads/{default}'):
-        return 'tighten'
+        return 'verify'
     raise ValueError(f'input mode=auto cannot handle event {event!r} '
                      f'on ref {os.environ.get("GITHUB_REF", "")!r}')
 
@@ -63,7 +63,7 @@ def main() -> int:
         # caller's, and a manual run has none, so auto's dispatch waits.
         requested = config.choice('mode', env('MODE', 'auto'), config.MODES)
         stale = config.choice('stale', env('STALE', 'warn'), config.STALE)
-        require_tight = config.require_tight_input(env('REQUIRE_TIGHT', 'false'))
+        require_tight = config.require_tight_input(env('REQUIRE_TIGHT', 'true'))
         records_path = env('RECORDS', '.github/size-baseline.json')
         records.validate_path(root, records_path)
         policy_out = build_policy()
