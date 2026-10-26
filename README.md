@@ -40,7 +40,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/size-ratchet@3cae97062051a76259ba22402c1b2eb1360df829 # v2.0.0
+      - uses: Nitjsefnie-Actions/size-ratchet@669f628e50522fc00b25c4e3d1623c20468829bf # v2.0.1
         with:
           ceilings: ''
           overrides: ''
