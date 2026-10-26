@@ -17,30 +17,34 @@ branch is resolved at run time — nothing outside the `with:` block is
 edited per consumer. The action reference is consumed by commit SHA — a
 tag is a moving pointer — so pin the release's commit and keep the
 `# vX.Y.Z` comment beside it, as the block below does for the latest
-release.
+release. The file may also be one a consumer's own workflow already calls
+as a reusable workflow: the `workflow_call` trigger below makes that
+adoption an overwrite of that file too (see Called runs).
 
 ```yaml
 name: size baseline
 on:
   pull_request:
   push:
+  workflow_call:
 permissions:
   contents: read
 concurrency:
-  group: size-baseline-${{ github.ref }}
+  group: ${{ github.workflow == 'size baseline' && format('size-baseline-{0}', github.ref) || format('size-baseline-called-{0}', github.run_id) }}
   cancel-in-progress: true
 jobs:
   size-baseline:
-    if: github.event_name == 'pull_request' || (github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/size-ratchet@669f628e50522fc00b25c4e3d1623c20468829bf # v2.0.1
+      - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
+        uses: Nitjsefnie-Actions/size-ratchet@669f628e50522fc00b25c4e3d1623c20468829bf # v2.0.1
         with:
           ceilings: ''
           overrides: ''
@@ -55,24 +59,42 @@ jobs:
 ```
 
 The `with:` block shows **every input with its default**. Omit it and a
-bare `uses:` step behaves the same on these events. The job skips a push
-to any branch that is not the repository's default branch, resolved from
-the event at run time, so the unfiltered `push:` trigger runs nothing on
-a feature branch. The checkout selects the PR's head tree; full history
-supplies the PR base without retaining a token. The action needs a Git
-checkout, bash and Python 3.15, which it sets up itself. It runs its
-runner under `python3 -I`: the standard library and the action's own
-modules only, so nothing from the consumer's tree is ever imported or
-executed, and there is no dependency to install or pin.
+bare `uses:` step behaves the same on these events. The gate's steps run
+only on a pull request or a push to the repository's default branch,
+resolved from the event at run time; on any other event the block runs
+on — a push to another branch or tag, a called run whose caller event is
+neither — the job completes green without measuring. The checkout selects
+the PR's head tree; full history supplies the PR base without retaining a
+token. The action needs a Git checkout, bash and Python 3.15, which it
+sets up itself. It runs its runner under `python3 -I`: the standard
+library and the action's own modules only, so nothing from the consumer's
+tree is ever imported or executed, and there is no dependency to install
+or pin.
 
 `auto` checks a pull request against the base revision's records, and on
 a push to the repository's actual default branch it verifies the records
 are exactly what tighten would write over that tree — every entry the
 default branch holds loose is named. Other events, including pushes to
-another branch that reach the action without the block's job `if`, fail
+another branch that reach the action without the steps' `if`, fail
 closed and name the event. Force `check` or `tighten` for a manual
 workflow. A forced check must supply `base-ref` when the event has no PR
 base SHA.
+
+A consumer whose aggregate workflow calls `.github/workflows/size-baseline.yml`
+with `uses:` adopts by saving the block over that
+file: no other workflow edit and no ruleset change, and the size leg
+stays inside the required aggregate. A called run sees the caller's
+event: on the caller's `pull_request` it checks the pull request, on a
+caller push to the default branch it verifies the records, and on any
+other caller event the job completes green without measuring, so a fold
+that requires the calling job reports. A consumer that calls the block
+also gets the block's own standalone run for the same events; both run
+the same check on the same tree. A standalone run shares its group with
+its own ref's earlier run and replaces a superseded one; a called run
+takes the run's own group (`github.run_id`), so no other run of the
+block cancels it or queues it. A caller workflow literally named
+`size baseline` would share the standalone group — name it anything
+else.
 
 Records are tightened in pull requests, never delivered by a job:
 `require-tight` is on by default, so a pull request that shrinks, deletes

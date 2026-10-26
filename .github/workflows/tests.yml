@@ -15,9 +15,9 @@ on:
     # the `pull_request` event below, and an unfiltered `push` schedules
     # the same commit a second time under a different ref, which the
     # `concurrency` group cannot collapse. There is no workflow_dispatch:
-    # the size-baseline job runs the install block as written, whose job
-    # `if` names only pull requests and default-branch pushes, and a
-    # completed run reruns from its own run page.
+    # the size-baseline job runs the install block as written, whose
+    # steps' `if` names only pull requests and default-branch pushes, and
+    # a completed run reruns from its own run page.
     branches: [main]
   pull_request:
 
@@ -368,16 +368,17 @@ jobs:
 
   size-baseline:
     # The README install block as written, with this repository pinned to
-    # its own checkout. The job `if` is the block's: tests.yml carries no
-    # workflow_dispatch trigger for it to name. The default `with:` values
-    # are the block's, so `require-tight` is on and scoped: a pull request
-    # that shrinks a recorded file lowers its entry in the same pull
-    # request, and the default branch holds no job that commits records.
-    if: github.event_name == 'pull_request' || (github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
+    # its own checkout. The steps' `if` is the block's: on any other event
+    # this workflow runs on the job completes green without measuring.
+    # The default `with:` values are the block's, so `require-tight` is on
+    # and scoped: a pull request that shrinks a recorded file lowers its
+    # entry in the same pull request, and the default branch holds no job
+    # that commits records.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Judge this run's own tree, including its local action. Full
           # history carries the base object without depending on retained
@@ -385,7 +386,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./ # zizmor: ignore[self-repository] the block's action, from this checkout
+      - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
+        uses: ./ # zizmor: ignore[self-repository] the block's action, from this checkout
         with:
           ceilings: ''
           overrides: ''
