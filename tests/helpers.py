@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 ACTION_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ACTION_ROOT / 'scripts' / 'ci'))
+import records  # noqa: E402
+
+RECORDS_PATH = '.github/size-baseline.json'
 
 
 def git(repo, *args):
@@ -26,11 +30,11 @@ def write_files(repo, files):
             path.write_text(content)
 
 
-def make_repo(tmp_path, files, name='repo'):
-    """A committed disposable repository holding ``files``."""
+def make_repo(tmp_path, files, name='repo', branch='main'):
+    """A committed disposable repository; the default branch is explicit."""
     repo = tmp_path / name
     repo.mkdir()
-    git(repo, 'init', '-q')
+    git(repo, 'init', '-q', '-b', branch)
     git(repo, 'config', 'user.email', 'test@example.invalid')
     git(repo, 'config', 'user.name', 'size-ratchet tests')
     write_files(repo, files)
@@ -50,13 +54,16 @@ def head(repo):
     return git(repo, 'rev-parse', 'HEAD').strip()
 
 
-def run_gate(repo, mode, base_ref=None, extra_env=None, **inputs):
-    """Run run.py as the composite action does: env data, python -I.
+def put_records(repo, baseline, member='baseline'):
+    """Commit a records seed and return its HEAD."""
+    add_and_commit(repo, RECORDS_PATH, records.document_text(member, baseline),
+                   'carry the records seed')
+    return head(repo)
 
-    The subprocess inherits the runner's environment: the CI coverage hook
-    rides COVERAGE_PROCESS_START, and a clean-room env would measure none
-    of the runner.
-    """
+
+def run_gate(repo, mode, base_ref=None, extra_env=None, **inputs):
+    """Run run.py as the composite action does: env data, python -I. The
+    subprocess inherits this environment, coverage hook included."""
     env = dict(os.environ)
     env['GITHUB_WORKSPACE'] = str(repo)
     env['SIZE_RATCHET_MODE'] = mode

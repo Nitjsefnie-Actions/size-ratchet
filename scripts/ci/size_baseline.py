@@ -10,8 +10,7 @@ unless it has a record or ``unclassified: fail`` asks for it. A recorded
 number is never raised and no entry is ever added by hand: growth is
 answered by relocating code into a new file, or by shrinking the file.
 
-Exit statuses: 0 pass, 1 violation, 2 configuration or environment failure.
-"""
+Exit statuses: 0 pass, 1 violation, 2 configuration or environment failure."""
 from __future__ import annotations
 
 import subprocess
@@ -80,10 +79,9 @@ def count_lines(blob):
 def read_blobs(root, wanted):
     """Yield (path, bytes) for each (sha, path) in ``wanted``.
 
-    One ``git cat-file --batch`` process reads every blob. Without
-    ``--buffer``, git flushes after each request, so the reader never waits
-    on output git has not produced. A blob git cannot produce raises naming
-    the path: an unreadable file fails the run.
+    One ``git cat-file --batch`` process reads every blob; git flushes
+    after each request, so the reader never waits on output git has not
+    produced. A blob git cannot produce raises naming the path.
     """
     if not wanted:
         return
@@ -114,13 +112,10 @@ def read_blobs(root, wanted):
 
 
 def measure(root, entries, policy, recorded, records_path=None):
-    """{path: lines} for the files this run judges.
-
-    A file is judged when it is typed and unexcluded, or recorded, or the
-    run fails unclassified files and it is unexcluded. Binary files, and
-    files git does not store as regular blobs, are never judged. The
-    records file itself is never judged: it is the gate's own data, not
-    source, and flagging it unclassified would fail every consumer.
+    """{path: lines} for the files this run judges: typed and unexcluded,
+    or recorded, or unexcluded under unclassified: fail. Binaries and
+    non-regular blobs are never judged. The records file itself is never
+    judged: it is the gate's own data, not source.
     """
     recorded = set(recorded or ())
     unclassified = policy.unclassified == 'fail'
@@ -143,11 +138,8 @@ def measure(root, entries, policy, recorded, records_path=None):
 
 
 def ceiling_violations(sizes, baseline, policy):
-    """Unrecorded measured files above their ceiling.
-
-    An untyped file has no ceiling, so it can never be over one; it is
-    reported by unclassified_violations instead.
-    """
+    """Unrecorded measured files above their ceiling; an untyped file has
+    none, so it is reported by unclassified_violations instead."""
     violations = {}
     for path, count in sorted(sizes.items()):
         if path in baseline:
@@ -174,12 +166,8 @@ def _stale_detail(detail):
 
 
 def record_states(sizes, baseline, policy):
-    """Per-record verdict: 'grown' (a violation), a stale reason, or
-    'same' (unchanged) passes silently.
-
-    An untyped file has no ceiling, so its record can shrink but never
-    graduate.
-    """
+    """Per-record verdict: 'grown', a stale reason, or 'same'. An untyped
+    file has no ceiling, so its record can shrink but never graduate."""
     states = {}
     for path, recorded in sorted(baseline.items()):
         if policy.excluded(path):
@@ -203,15 +191,12 @@ def record_states(sizes, baseline, policy):
 
 
 def tightened(baseline, sizes, policy):
-    """The map a tighten writes, or ``None`` when it would write nothing.
-
-    ``baseline`` of ``None`` means no records: seeding records every typed,
-    unexcluded file over its ceiling at its current count. Otherwise every
-    record lowers to the file's current count, drops when its file is
-    deleted, excluded or graduated (at or below the ceiling), and is kept,
-    lowered, when its file has no ceiling. A record is never raised and no
-    entry is ever added except when seeding.
-    """
+    """The map a tighten writes, or ``None`` when nothing changes. A
+    ``baseline`` of ``None`` seeds every typed, unexcluded file over its
+    ceiling at its current count; otherwise each record lowers to its
+    file's count, dropping deleted, excluded and graduated files, and an
+    untyped file's record is kept, lowered. A record is never raised and
+    no entry is ever added except when seeding."""
     if baseline is None:
         return {
             path: count
@@ -260,6 +245,8 @@ def run(root, records_path, member_input, mode, base_ref, policy,
         return _tighten(root, records_path, member, entries, policy, head_map)
     # Check judges one revision: the tree and its records both from HEAD.
     head_map = records.read_map_at(root, 'HEAD', records_path, member)
+    if mode == 'verify':
+        return _verify(root, records_path, member, entries, policy, head_map)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -287,17 +274,26 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         raise ValueError('input base-ref is empty and check needs it: pass '
                          'the revision whose records bind this check')
     base_map = records.read_map_at(root, base_ref, records_path, member)
-    # Measure every path either side records: a head that drops an untyped
-    # file's entry must not take that file out of measurement, or a records
-    # edit in the head would loosen the base's binding record.
+    # Measure every path either side records; a head records edit must not
+    # take a file out of measurement.
     recorded = set(base_map or {}) | set(head_map or {})
     sizes = measure(root, entries, policy, recorded, records_path)
     if base_map is None:
         return _check_seed(head_map, sizes, policy)
+    # An exact head count for an unrecorded over-ceiling file is a seed.
+    seed_adds = {
+        path for path, count in (head_map or {}).items()
+        if path not in base_map
+        and (limit := policy.ceiling(path)) is not None
+        and sizes.get(path, 0) > limit
+        and count == sizes.get(path)
+    }
     for path in unclassified_violations(sizes, base_map, policy):
         failures.append(f'{path}: unclassified (no type and no record); '
                         'name a ceiling for it or exclude it')
     for path, (count, limit) in ceiling_violations(sizes, base_map, policy).items():
+        if path in seed_adds:
+            continue
         failures.append(f'{path}: {count} lines above its ceiling of {limit}')
     for path, state in record_states(sizes, base_map, policy).items():
         if state[0] == 'grown':
@@ -312,15 +308,25 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
             print(f'::notice::{path}: stale ({STALE_REASONS[state[0]]}); '
                   f'{_stale_detail(state[1])}')
     if require_tight:
+        # Untouched entries stay with the stale report.
+        base_sizes = measure(root, list_tree(root, base_ref), policy,
+                             base_map, records_path)
+        touched = _changed_entries(base_sizes, sizes, base_map, head_map)
         required = tightened(base_map, sizes, policy)
-        if required is None:
-            required = base_map
-        actual = head_map or {}
-        if actual != required:
-            failures.append('require-tight: the head records differ from '
-                            'what tighten writes over this tree:')
+        required = dict(base_map) if required is None else dict(required)
+        for path in seed_adds:
+            required[path] = head_map[path]
+        scoped = {
+            path for path in set(required) | set(head_map or {})
+            if path in touched
+            and head_map.get(path, _MISSING) != required.get(path, _MISSING)
+        }
+        if scoped:
+            failures.append('require-tight: entries this pull request '
+                            'changes must be tight, and these are not:')
             failures.extend('  ' + line for line in
-                            _diff_report(required, actual))
+                            _diff_report_subset(required, head_map or {},
+                                                scoped))
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
@@ -328,6 +334,54 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         print(GROWTH_REMEDY, file=sys.stderr)
         return 1
     print(f'size-ratchet: {len(sizes)} measured files within the size policy')
+    return 0
+
+
+def _changed_entries(base_sizes, sizes, base_map, head_map):
+    """Entries whose file count or record moved between base and head."""
+    missing = _MISSING
+    paths = set(base_sizes) | set(sizes) | set(base_map or {}) \
+        | set(head_map or {})
+    return {
+        path for path in paths
+        if base_sizes.get(path, missing) != sizes.get(path, missing)
+        or base_map.get(path, missing) != head_map.get(path, missing)
+    }
+
+
+# Distinct from every count, even an empty file's 0.
+_MISSING = object()
+
+
+def _diff_report_subset(required, actual, paths):
+    """_diff_report restricted to ``paths``."""
+    keep = {f'{path}: ' for path in paths}
+    return [line for line in _diff_report(required, actual)
+            if line[2:].startswith(tuple(keep))]
+
+
+def _verify(root, records_path, member, entries, policy, head_map):
+    """The default-branch run: records must already be tight, since
+    tighten here would only write an uncommitted checkout."""
+    if head_map is None:
+        print('size-ratchet: no records on the default branch; '
+              'nothing to verify')
+        return 0
+    recorded = set(head_map)
+    sizes = measure(root, entries, policy, recorded, records_path)
+    expected = tightened(head_map, sizes, policy)
+    if expected is not None:
+        print('size-ratchet: the size ratchet failed:', file=sys.stderr)
+        print('  the records are loose; tighten over this tree writes:',
+              file=sys.stderr)
+        for line in _diff_report(expected, head_map):
+            print(f'  {line}', file=sys.stderr)
+        print('lower or drop each named entry in a pull request that '
+              'touches the file, or commit the tightened records to the '
+              'default branch', file=sys.stderr)
+        return 1
+    print(f'size-ratchet: records are tight over {len(sizes)} '
+          'measured files')
     return 0
 
 
