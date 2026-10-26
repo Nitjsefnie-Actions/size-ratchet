@@ -93,6 +93,19 @@ def test_stale_fail_fails(tmp_path):
     assert 'src/a.py: stale' in done.stderr
 
 
+def test_a_graduated_notice_names_the_record(tmp_path):
+    # The base carries a loose record for a file already at its ceiling
+    # (issue 27): the graduated verdict's detail is the record, so the
+    # notice reads the record against the count, never the ceiling.
+    repo = make_repo(tmp_path, {'src/x.py': 'x\n' * 500})
+    base = put_records(repo, {'src/x.py': 550})
+    add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
+    done = run_gate(repo, 'check', base_ref=base)
+    assert done.returncode == 0, done.stderr
+    assert ('::notice::src/x.py: stale (the file is at or below its '
+            'ceiling); recorded 550, now 500\n') in done.stdout
+
+
 @pytest.mark.parametrize('stale', ['warn', 'fail'])
 def test_an_unchanged_record_is_neither_failure_nor_stale(tmp_path, stale):
     # A record equal to the head count (issue 11) is neither a failure nor

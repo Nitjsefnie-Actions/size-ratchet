@@ -116,7 +116,7 @@ def test_record_states_covers_every_verdict():
     states = size_baseline.record_states(sizes, baseline, policy)
     assert states == {
         'src/grown.py': ('grown', (501, 490)),
-        'src/graduated.py': ('graduated', (500, 500)),
+        'src/graduated.py': ('graduated', (500, 900)),
         'src/shrunk.py': ('shrunk', (600, 900)),
         'src/same.py': ('same', (501, 501)),
         'src/deleted.py': ('deleted', 900),
@@ -142,7 +142,7 @@ def test_a_file_at_its_record_but_below_the_ceiling_is_graduated():
     policy = size_baseline.Policy()
     states = size_baseline.record_states({'src/a.py': 490},
                                          {'src/a.py': 490}, policy)
-    assert states == {'src/a.py': ('graduated', (490, 500))}
+    assert states == {'src/a.py': ('graduated', (490, 490))}
 
 
 def test_tighten_seeds_only_files_over_their_ceiling(tmp_path):

@@ -180,7 +180,7 @@ def record_states(sizes, baseline, policy):
             continue
         ceiling = policy.ceiling(path)
         if ceiling is not None and count <= ceiling:
-            states[path] = ('graduated', (count, ceiling))
+            states[path] = ('graduated', (count, recorded))
         elif count < recorded:
             states[path] = ('shrunk', (count, recorded))
         else:
