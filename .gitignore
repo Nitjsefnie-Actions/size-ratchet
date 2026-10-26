@@ -19,6 +19,7 @@ tests/*
 !tests/__init__.py
 !tests/run.sh
 !tests/helpers.py
+!tests/_block_harness.py
 !tests/test_*.py
 !tests/gate_base_freshness.py
 !tests/commit_scopes.py
