@@ -60,8 +60,8 @@
     8405
   ],
   "scripts/ci/size_baseline.py": [
-    2583,
-    10458
+    2569,
+    12236
   ],
   "tests/commit_scopes.py": [
     6966,
@@ -70,10 +70,6 @@
   "tests/gate_base_freshness.py": [
     11578,
     21218
-  ],
-  "tests/helpers.py": [
-    313,
-    1724
   ],
   "tests/run.sh": [
     18,

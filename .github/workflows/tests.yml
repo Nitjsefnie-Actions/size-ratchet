@@ -25,10 +25,12 @@ on:
     # Default branch only: a pull-request head already gets one run from
     # the `pull_request` event below, and an unfiltered `push` schedules
     # the same commit a second time under a different ref, which the
-    # `concurrency` group cannot collapse.
+    # `concurrency` group cannot collapse. There is no workflow_dispatch:
+    # the size-baseline job runs the install block as written, whose job
+    # `if` names only pull requests and default-branch pushes, and a
+    # completed run reruns from its own run page.
     branches: [main]
   pull_request:
-  workflow_dispatch:
 
 # Least privilege: this job only reads the tree. Without an explicit
 # block it inherits the repository default, which can be read/write
@@ -379,27 +381,36 @@ jobs:
           if-no-files-found: error
 
   size-baseline:
+    # The README install block as written, with this repository pinned to
+    # its own checkout. The job `if` is the block's: tests.yml carries no
+    # workflow_dispatch trigger for it to name. The default `with:` values
+    # are the block's, so `require-tight` is on and scoped: a pull request
+    # that shrinks a recorded file lowers its entry in the same pull
+    # request, and the default branch holds no job that commits records.
+    if: github.event_name == 'pull_request' || (github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Judge the PR's own tree, including its local action. Full history
-          # carries the base object without depending on retained credentials.
+          # Judge this run's own tree, including its local action. Full
+          # history carries the base object without depending on retained
+          # credentials.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Check this tree with its own action
-        # The adoption gate explicitly exercises the checked-out PR head.
-        # The overrides input gives tests/ the 700-line ceiling claudit's
-        # own gate uses: the ported gate-integrity scripts live there and
-        # run past 500. The tighten job below must pass the same policy,
-        # or the two runs would disagree about graduation.
-        uses: ./ # zizmor: ignore[self-repository]
+      - uses: ./ # zizmor: ignore[self-repository] the block's action, from this checkout
         with:
-          mode: check
-          overrides: 'tests/: 700'
-          base-ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ceilings: ''
+          overrides: ''
+          exclude: ''
+          unclassified: 'ignore'
+          records: '.github/size-baseline.json'
+          member: ''
+          mode: 'auto'
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          stale: 'warn'
+          require-tight: 'true'
 
   aggregate:
     # Like claudit's aggregate: always report, including after a failed or
@@ -418,58 +429,3 @@ jobs:
         env:
           SIZE_RATCHET_NEEDS_JSON: ${{ toJSON(needs) }}
         run: python3 scripts/ci/aggregate_gate.py
-
-  ratchet:
-    # Staging is keyless and follows the whole gate, not just one matrix cell.
-    # A records-only push runs this once more, but the no-change stage below
-    # emits no artifact and terminates the push chain.
-    needs: aggregate
-    if: >-
-      success() && needs.aggregate.result == 'success' &&
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Tighten records after the green gate
-        uses: ./ # zizmor: ignore[self-repository] exercise this run's checked-out action
-        with:
-          mode: tighten
-          # Same policy as the check job's step above: a tighten that
-          # disagrees about graduation would drop records the check keeps.
-          overrides: 'tests/: 700'
-      - name: Stage changed records for the separate push workflow
-        id: stage
-        env:
-          SIZE_RATCHET_BASE_SHA: ${{ github.sha }}
-        run: |
-          if [ "$(git rev-parse HEAD)" != "$SIZE_RATCHET_BASE_SHA" ]; then
-            echo 'Checkout does not match the measured run head' >&2
-            exit 1
-          fi
-          changed=0
-          git diff --quiet -- .github/size-baseline.json || changed=$?
-          if [ "$changed" -gt 1 ]; then
-            echo "git diff failed with $changed" >&2
-            exit "$changed"
-          fi
-          if [ "$changed" -eq 0 ]; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          mkdir -p "$RUNNER_TEMP/ratchet-push"
-          cp .github/size-baseline.json "$RUNNER_TEMP/ratchet-push/size-baseline.json"
-          printf '%s\n' "$SIZE_RATCHET_BASE_SHA" > "$RUNNER_TEMP/ratchet-push/base.txt"
-          echo 'changed=true' >> "$GITHUB_OUTPUT"
-      - name: Upload the changed records
-        if: success() && steps.stage.outputs.changed == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ratchet-push
-          path: ${{ runner.temp }}/ratchet-push
-          if-no-files-found: error
-          retention-days: 1
