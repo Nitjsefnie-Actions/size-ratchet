@@ -12,17 +12,18 @@ into the type-and-folder policy below.
 
 ## Install
 
-Save this workflow as `.github/workflows/size-baseline.yml`. Change `main`
-to your default branch. The action reference is consumed by commit SHA — a
-tag is a moving pointer — so pin the release's commit and keep the `#
-vX.Y.Z` comment beside it, as the block below does for the latest release.
+Save this workflow as `.github/workflows/size-baseline.yml`. The default
+branch is resolved at run time — nothing outside the `with:` block is
+edited per consumer. The action reference is consumed by commit SHA — a
+tag is a moving pointer — so pin the release's commit and keep the
+`# vX.Y.Z` comment beside it, as the block below does for the latest
+release.
 
 ```yaml
 name: size baseline
 on:
   pull_request:
   push:
-    branches: [main]
 permissions:
   contents: read
 concurrency:
@@ -30,6 +31,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   size-baseline:
+    if: github.event_name == 'pull_request' || (github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,27 +51,51 @@ jobs:
           mode: 'auto'
           base-ref: ${{ github.event.pull_request.base.sha }}
           stale: 'warn'
-          require-tight: 'false'
+          require-tight: 'true'
 ```
 
 The `with:` block shows **every input with its default**. Omit it and a
-bare `uses:` step behaves the same on these events. The checkout selects
-the PR's head tree; full history supplies the PR base without retaining a
-token. The action needs a Git checkout, bash and Python 3.15, which it sets
-up itself. It runs its runner under `python3 -I`: the standard library and
-the action's own modules only, so nothing from the consumer's tree is ever
-imported or executed, and there is no dependency to install or pin.
+bare `uses:` step behaves the same on these events. The job skips a push
+to any branch that is not the repository's default branch, resolved from
+the event at run time, so the unfiltered `push:` trigger runs nothing on
+a feature branch. The checkout selects the PR's head tree; full history
+supplies the PR base without retaining a token. The action needs a Git
+checkout, bash and Python 3.15, which it sets up itself. It runs its
+runner under `python3 -I`: the standard library and the action's own
+modules only, so nothing from the consumer's tree is ever imported or
+executed, and there is no dependency to install or pin.
 
-`auto` checks on `pull_request` and tightens on a `push` to the
-repository's actual default branch. Other events, including pushes to
-another branch, fail closed and name the event. Force `check` or `tighten`
-for a manual workflow. A forced check must supply `base-ref` when the event
-has no PR base SHA.
+`auto` checks a pull request against the base revision's records, and on
+a push to the repository's actual default branch it verifies the records
+are exactly what tighten would write over that tree — every entry the
+default branch holds loose is named. Other events, including pushes to
+another branch that reach the action without the block's job `if`, fail
+closed and name the event. Force `check` or `tighten` for a manual
+workflow. A forced check must supply `base-ref` when the event has no PR
+base SHA.
 
-Tighten writes the records file into the checkout; it does not commit or
-push it. A consumer's existing ratchet job can commit that result. For
-initial adoption, run tighten on the proposed head and commit the seed in
-the adoption PR (see Seeding).
+Records are tightened in pull requests, never delivered by a job:
+`require-tight` is on by default, so a pull request that shrinks,
+deletes, excludes or graduates a recorded file fails until that entry in
+the same pull request says what tighten would write — lowered, or
+dropped. The default branch holds no job that commits records. For
+initial adoption, run tighten on the proposed head and commit the seed
+in the adoption PR (see Seeding).
+
+Two pull requests checked against the same base can both merge and leave
+a record above its file's count — each lowered the record to its own
+head's count, and the merged tree carries both deletions. The
+default-branch run reports every such entry, and a pull request that
+changes neither the file nor its record still passes; the next pull
+request that touches either must make that entry exact.
+
+A consumer that today delivers size records from its own push job deletes
+exactly that: the size arm of its delivery workflow — the tighten step,
+the artifact staging and the commit — and the tests of that delivery.
+Records files a delivery also lands for other gates keep their arms, and
+the delivery workflow itself stays when they do. No credential, ruleset,
+environment or extra workflow is added: the block above is the whole
+adoption.
 
 ## Inputs
 
@@ -82,9 +108,9 @@ the adoption PR (see Seeding).
 | `records` | `'.github/size-baseline.json'` | Repository-relative records file. |
 | `member` | `''` | Top-level key of the records file holding the baseline map, instead of `baseline`. |
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
-| `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten. |
+| `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch verification. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'false'` | `true` also fails a check whose records differ from what tighten would write over the head tree. |
+| `require-tight` | `'true'` | Fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. |
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
 malformed line, an unknown type, a folder without a trailing `/`, a
@@ -151,15 +177,25 @@ so a records edit in the head does not loosen the gate. Each failure names
 the path, its measured lines, and the record or ceiling it exceeded. A
 recorded entry whose file shrank, was deleted, was excluded, or is at or
 below its ceiling is **stale**: `stale: warn` reports it as a notice;
-`stale: fail` fails the run. `require-tight: true` also fails when the
-head's baseline map differs from what tighten would write from the base
-baseline over the head tree, naming each differing entry.
+`stale: fail` fails the run. `require-tight` (on by default) also fails
+when an entry the pull request changes — its file's count moved between
+the base and head trees, or its record moved between the base and head
+maps — differs from what tighten would write, naming each differing entry
+as `lowered to N` or `dropped`. Entries the pull request leaves untouched
+stay with the stale report: a loose record already on the base never
+fails unrelated work. An entry the head adds for an unrecorded
+over-ceiling file must be that file's exact head count — the same
+exactness the seed fallback demands (see Seeding); any other number, and
+any entry added for a file at or below its ceiling, is refused.
 
 **Tighten** lowers each record to the file's current count. It drops
 entries for deleted, excluded and graduated (at or below the ceiling)
 files, and keeps an entry whose file has no ceiling, lowered to its count.
 It never raises or adds an entry except when seeding. A run with nothing to
-change writes nothing and passes.
+change writes nothing and passes. A job never commits the result: pull
+requests carry tightened records (`require-tight`), and the default
+branch's own run verifies them. Force `tighten` to seed, or to write the
+records file for a deliberate commit.
 
 ## Seeding
 
@@ -168,7 +204,9 @@ count. A check whose `base-ref` has no records uses the head's: the head's
 baseline map must equal exactly what a seeding tighten over the head tree
 writes, and a failure names each differing entry. If neither revision has
 records, check fails and says to run tighten to seed. Once the base has
-records, only the base's bind.
+records, only the base's bind. A base whose records map is empty is the
+same for additions: an entry the head adds for an over-ceiling file must
+be the file's exact head count.
 
 Three consequences for an adopting PR:
 
