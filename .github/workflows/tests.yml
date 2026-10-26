@@ -2,23 +2,12 @@ name: tests
 
 # Linux-only checks cannot establish macOS portability. Both POSIX legs
 # run the same real-subprocess behavioral suite against disposable git
-# repositories, and coverage is measured on the ubuntu cell only. The
-# suite's python3 processes are subprocesses of run.sh, so the coverage
-# measurer must start inside every python3 the suite starts (see the
-# Install coverage tooling step).
-#
+# repositories, and coverage is measured on the ubuntu cell only.
 # The action itself imports the standard library and nothing else; the
 # suite does not: it needs pytest, PyYAML, coverage (measured cell),
 # all from the hash-pinned .github/workflows/requirements-test.txt,
 # into the interpreter actions/setup-python provides (see the Install
 # the regression toolchain step).
-#
-# The same measurement is also reported per change: the measured cell
-# writes the XML form of it, the pull-request-only `diff-coverage` job
-# diffs the merge commit against its base and renders what the change
-# ADDED, and the `coverage-comment` workflow posts it as one
-# pull-request comment. That report is deliberately not a gate -- see
-# .github/scripts/diff_coverage.py.
 
 on:
   push:
@@ -140,8 +129,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Nothing in this job pushes. Leaving the token in
-          # .git/config lets any later step reuse it.
+          # Nothing in this job pushes, so no token is left in .git/config
+          # for a later step to reuse.
           persist-credentials: false
 
       # One interpreter on both legs: the manifest's hashes cover the 3.15
@@ -152,18 +141,15 @@ jobs:
           python-version: '3.15.1'
 
       - name: Check no tracked file carries a merge-conflict marker
-        # A conflict marker is text that looks like prose in a Markdown
-        # file, so every reviewer can read past it and only a mechanical
-        # check sees it. git grep reads the tracked files out of the working
-        # tree, which on a clean checkout is what the repository ships, and
-        # -I keeps a binary from being reported as a match. The three markers
-        # are matched in the shapes git writes them: `<<<<<<< ` and `>>>>>>> `
-        # carry the label after seven characters, and the separator is exactly
-        # seven `=`; diff3's extra `||||||| base` line changes nothing, because
-        # the other three are still written. This job rather than the
-        # actionlint one because this workflow's push trigger is unfiltered,
-        # so it runs for the documentation-only commit that carries the marker
-        # as well as for the code change.
+        # Only a mechanical check sees a marker that reads as prose in a
+        # Markdown file, and -I keeps a binary from being reported as a match.
+        # The markers are matched in the shapes git writes them: `<<<<<<< `
+        # and `>>>>>>> ` carry the label after seven characters, the separator
+        # is exactly seven `=`, and diff3's extra `||||||| base` line changes
+        # nothing, because the other three are still written. This job rather
+        # than the actionlint one because this workflow's push trigger is
+        # unfiltered: it runs for the documentation-only commit that carries
+        # the marker as well as for the code change.
         # Explicit `shell: bash` adds --noprofile --norc, and pipefail is its
         # only operative delta -- the body already guards `git grep` with
         # `|| found=$?`, so no pipe here can turn "no match" into a failure
@@ -325,8 +311,8 @@ jobs:
           # was merged into it.
           ref: ${{ github.sha }}
           fetch-depth: 0
-          # Nothing in this job pushes; later steps must not inherit a stored
-          # token.
+          # Nothing in this job pushes, so no token is left in .git/config
+          # for a later step to reuse.
           persist-credentials: false
 
       - name: Download the coverage XML
