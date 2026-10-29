@@ -70,10 +70,10 @@ resolved from the event at run time; on any other event the block runs
 on — a push to `main` or `master` where that is not the default branch,
 a called run whose caller event is neither — the job completes green
 without measuring. A push to any other branch, or a tag, starts no run
-of the block, so a pull request's head commit carries only the pull
-request's run and a reader taking the newest run on that commit reads
-the check. The checkout selects
-the PR's head tree; full history supplies the PR base without retaining a
+of the block, so a pull request from any branch but `main` or
+`master` carries only the pull request's run on its head commit, and a
+reader taking the newest run on that commit reads the check. The
+checkout selects the PR's head tree; full history supplies the PR base without retaining a
 token. The action needs a Git checkout, bash and Python 3.15, which it
 sets up itself. It runs its runner under `python3 -I`: the standard
 library and the action's own modules only, so nothing from the consumer's
@@ -99,7 +99,8 @@ request, on a caller push to the default branch it verifies the
 records, and on any other caller event the job completes green without
 measuring, so a fold that requires the calling job reports. A consumer
 that calls the block also gets the block's own standalone run on a pull
-request and on a push to `main` or `master`; both run the same check on
+request and on a push to `main` or `master`; on a pull request and on a
+push to a default branch with either name, both run the same check on
 the same tree. The `push:` filter binds only that standalone run: a
 called run follows the caller's triggers, so a caller push to a default
 branch of any name verifies the records. A standalone run
