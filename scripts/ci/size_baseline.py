@@ -367,8 +367,9 @@ def _diff_report_subset(required, actual, paths):
 
 def _verify(root, records_path, member, entries, policy, head_map,
             require_tight):
-    """The default-branch run: records must already be tight, since
-    tighten here would only write an uncommitted checkout."""
+    """The default-branch run: records must already be tight (under
+    require-tight false a loose entry is a notice), since tighten here
+    would only write an uncommitted checkout."""
     if head_map is None:
         print('size-ratchet: no records on the default branch; '
               'nothing to verify')
