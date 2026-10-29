@@ -45,7 +45,7 @@ def test_a_pull_request_head_commit_gets_only_the_pull_request_run():
     for branch in ('issue-38', 'feature/x', 'dependabot/pip/x', 'mainline',
                    'master-fix'):
         assert not push_run_starts(f'refs/heads/{branch}'), branch
-    assert not push_run_starts('refs/tags/v1.0.0')
+    assert not push_run_starts('refs/tags/main')
     assert push_run_starts('refs/heads/main')
     assert push_run_starts('refs/heads/master')
 
