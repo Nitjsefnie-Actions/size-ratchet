@@ -8,7 +8,8 @@ import yaml
 
 from tests._block_harness import (BLOCK_IF, block_step_if, block_with_inputs,
                                   eval_expression, install_block,
-                                  install_block_text, run_block_as_called)
+                                  install_block_text, push_run_starts,
+                                  run_block_as_called)
 from tests.helpers import (add_and_commit, git, head, make_repo, put_records,
                            run_gate)
 
@@ -23,10 +24,46 @@ def test_the_block_resolves_the_default_branch_at_run_time():
     assert block_step_if() == BLOCK_IF
     trigger = block[True]
     assert sorted(trigger) == ['pull_request', 'push', 'workflow_call']
-    # An unfiltered trigger: the steps' `if` resolves the default branch.
-    assert trigger['push'] in (None, {})
+    # The push filter names both conventional default branches; the
+    # steps' `if` still resolves the actual one.
+    assert trigger['push'] == {'branches': ['main', 'master']}
     assert trigger['pull_request'] in (None, {})
     assert trigger['workflow_call'] in (None, {})
+
+
+def test_a_push_beside_pull_request_carries_a_branches_filter():
+    # A consumer's trigger rule: a workflow with both triggers filters
+    # its push by branch, by the event's own key, not a nested one.
+    trigger = install_block()[True]
+    assert 'pull_request' in trigger and 'push' in trigger
+    assert 'branches' in (trigger['push'] or {})
+
+
+def test_a_pull_request_head_commit_gets_only_the_pull_request_run():
+    # A newest-run reader on a same-repository pull request's head SHA
+    # sees one run of the block: no push run, skipped or not, beside it.
+    for branch in ('issue-38', 'feature/x', 'dependabot/pip/x', 'mainline',
+                   'master-fix'):
+        assert not push_run_starts(f'refs/heads/{branch}'), branch
+    assert not push_run_starts('refs/tags/v1.0.0')
+    assert push_run_starts('refs/heads/main')
+    assert push_run_starts('refs/heads/master')
+
+
+@pytest.mark.parametrize('branch', ['main', 'master'])
+def test_a_default_branch_push_starts_the_verification(tmp_path, branch):
+    # Both conventional default branches get the standalone run, and its
+    # steps verify the records.
+    repo = make_repo(tmp_path, branch=branch, files={'src/x.py': 'a\n' * 500})
+    put_records(repo, {'src/x.py': 550})
+    ref = f'refs/heads/{branch}'
+    assert push_run_starts(ref)
+    ran, done = run_block_as_called(
+        repo, 'push', ref, {'repository': {'default_branch': branch}},
+        workflow='size baseline')
+    assert ran == 2
+    assert done.returncode == 1
+    assert 'records are loose' in done.stderr
 
 
 def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
@@ -217,15 +254,18 @@ def test_a_called_pull_request_runs_the_check_a_direct_run_runs(tmp_path):
     assert '~ src/x.py: required 550, recorded 600' in done.stderr
 
 
-def test_a_called_default_branch_push_runs_the_verification(tmp_path):
+@pytest.mark.parametrize('branch', ['master', 'trunk'])
+def test_a_called_default_branch_push_runs_the_verification(tmp_path,
+                                                           branch):
     # Item 6, the caller on a default-branch push: the leg verifies,
-    # exactly as the block's own default-branch run does.
-    repo = make_repo(tmp_path, branch='master',
+    # exactly as the block's own default-branch run does. The block's
+    # push filter binds only its standalone run, so any name verifies.
+    repo = make_repo(tmp_path, branch=branch,
                      files={'src/x.py': 'a\n' * 500})
     put_records(repo, {'src/x.py': 550})
     ran, done = run_block_as_called(
-        repo, 'push', 'refs/heads/master',
-        {'repository': {'default_branch': 'master'}})
+        repo, 'push', f'refs/heads/{branch}',
+        {'repository': {'default_branch': branch}})
     assert ran == 2
     assert done.returncode == 1
     assert 'records are loose' in done.stderr

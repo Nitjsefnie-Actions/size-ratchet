@@ -12,9 +12,13 @@ into the type-and-folder policy below.
 
 ## Install
 
-Save this workflow as `.github/workflows/size-baseline.yml`. The default
-branch is resolved at run time — nothing outside the `with:` block is
-edited per consumer. The action reference is consumed by commit SHA — a
+Save this workflow as `.github/workflows/size-baseline.yml`. Its `push:`
+filter names both conventional default branches, `main` and `master`,
+and its steps resolve the actual default branch at run time, so a
+repository whose default branch is either edits nothing outside the
+`with:` block. A default branch with any other name is added to that
+`branches:` list; without it, pull requests are still checked but the
+default branch gets no standalone verification run. The action reference is consumed by commit SHA — a
 tag is a moving pointer — so pin the release's commit and keep the
 `# vX.Y.Z` comment beside it, as the block below does for the latest
 release. The file may also be one a consumer's own workflow already calls
@@ -26,6 +30,7 @@ name: size baseline
 on:
   pull_request:
   push:
+    branches: [main, master]
   workflow_call:
 permissions:
   contents: read
@@ -62,8 +67,12 @@ The `with:` block shows **every input with its default**. Omit it and a
 bare `uses:` step behaves the same on these events. The gate's steps run
 only on a pull request or a push to the repository's default branch,
 resolved from the event at run time; on any other event the block runs
-on — a push to another branch or tag, a called run whose caller event is
-neither — the job completes green without measuring. The checkout selects
+on — a push to `main` or `master` where that is not the default branch,
+a called run whose caller event is neither — the job completes green
+without measuring. A push to any other branch, or a tag, starts no run
+of the block, so a pull request's head commit carries only the pull
+request's run and a reader taking the newest run on that commit reads
+the check. The checkout selects
 the PR's head tree; full history supplies the PR base without retaining a
 token. The action needs a Git checkout, bash and Python 3.15, which it
 sets up itself. It runs its runner under `python3 -I`: the standard
@@ -89,8 +98,11 @@ caller's event: on the caller's `pull_request` it checks the pull
 request, on a caller push to the default branch it verifies the
 records, and on any other caller event the job completes green without
 measuring, so a fold that requires the calling job reports. A consumer
-that calls the block also gets the block's own standalone run for the
-same events; both run the same check on the same tree. A standalone run
+that calls the block also gets the block's own standalone run on a pull
+request and on a push to `main` or `master`; both run the same check on
+the same tree. The `push:` filter binds only that standalone run: a
+called run follows the caller's triggers, so a caller push to a default
+branch of any name verifies the records. A standalone run
 shares its group with its own ref's earlier run and replaces a
 superseded one. A called run takes the calling run's group
 (`github.run_id` is the caller's run id), so no other run of the block,
