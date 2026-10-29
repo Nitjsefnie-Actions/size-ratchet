@@ -36,28 +36,40 @@ def test_a_push_beside_pull_request_carries_a_branches_filter():
     assert 'branches' in (trigger['push'] or {})
 
 
-def test_a_pull_request_head_commit_gets_only_the_pull_request_run():
-    # A newest-run reader on a PR head SHA finds no push run beside it.
-    for branch in ('issue-38', 'feature/x', 'dependabot/pip/x', 'mainline',
-                   'master-fix'):
-        assert not push_run_starts(f'refs/heads/{branch}'), branch
-    assert not push_run_starts('refs/tags/main')
-    assert push_run_starts('refs/heads/main')
-    assert push_run_starts('refs/heads/master')
+# (default branch, pushed branch, a push run starts, steps that run)
+PUSH_RUNS = [
+    ('main', 'main', True, 2), ('main', 'master', True, 0),
+    ('main', 'trunk', False, 0), ('main', 'issue-38', False, 0),
+    ('master', 'master', True, 2), ('master', 'main', True, 0),
+    ('master', 'feature/x', False, 0),
+    # The documented limit: another default branch gets no standalone run.
+    ('trunk', 'trunk', False, 0), ('trunk', 'main', True, 0),
+    ('trunk', 'master', True, 0), ('trunk', 'issue-38', False, 0),
+]
 
 
-@pytest.mark.parametrize('branch', ['main', 'master'])
-def test_a_default_branch_push_starts_the_verification(tmp_path, branch):
-    repo = make_repo(tmp_path, branch=branch, files={'src/x.py': 'a\n' * 500})
+@pytest.mark.parametrize('default,pushed,starts,steps', PUSH_RUNS)
+def test_a_branch_push_starts_a_run_only_on_main_or_master(
+        tmp_path, default, pushed, steps, starts):
+    # A newest-run reader on a PR head SHA finds no push run beside it
+    # unless the head branch is main or master.
+    ref = f'refs/heads/{pushed}'
+    assert push_run_starts(ref) is starts
+    if not starts:
+        return
+    repo = make_repo(tmp_path, branch=pushed, files={'src/x.py': 'a\n' * 500})
     put_records(repo, {'src/x.py': 550})
-    ref = f'refs/heads/{branch}'
-    assert push_run_starts(ref)
     ran, done = run_block_as_called(
-        repo, 'push', ref, {'repository': {'default_branch': branch}},
+        repo, 'push', ref, {'repository': {'default_branch': default}},
         workflow='size baseline')
-    assert ran == 2
-    assert done.returncode == 1
-    assert 'records are loose' in done.stderr
+    assert ran == steps
+    if steps:
+        assert done.returncode == 1
+        assert 'records are loose' in done.stderr
+
+
+def test_a_tag_push_starts_no_run():
+    assert not push_run_starts('refs/tags/main')
 
 
 def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
