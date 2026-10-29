@@ -43,6 +43,21 @@ def block_step_if():
     return ifs[0]
 
 
+def push_run_starts(ref):
+    """Whether GitHub starts a standalone run of the block for a push to
+    `ref`, read from the trigger's own `branches:` filter."""
+    push = install_block()[True]['push'] or {}
+    assert set(push) <= {'branches'}, f'unmodelled push filter {push!r}'
+    # shortcut: literal branch names only; a pattern is refused, never
+    # matched, until the block carries one.
+    patterns = push.get('branches')
+    if patterns is None:
+        return True
+    assert not any(set(p) & set('*?+[]!') for p in patterns), patterns
+    # A branches-only filter starts no run for a tag push.
+    return ref in [f'refs/heads/{pattern}' for pattern in patterns]
+
+
 def eval_expression(text, github):
     """Evaluate the subset of GitHub expressions the block uses; anything
     the grammar does not name is refused, never empty-matched."""
