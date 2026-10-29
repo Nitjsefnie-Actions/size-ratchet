@@ -9,7 +9,7 @@ import yaml
 from tests._block_harness import (BLOCK_IF, block_step_if, block_with_inputs,
                                   eval_expression, install_block,
                                   install_block_text, run_block_as_called)
-from tests.helpers import (add_and_commit, head, make_repo, put_records,
+from tests.helpers import (add_and_commit, git, head, make_repo, put_records,
                            run_gate)
 
 ACTION_ROOT = Path(__file__).resolve().parents[1]
@@ -139,6 +139,38 @@ def test_the_default_branch_run_reports_a_loose_entry(tmp_path):
     # drop, not a lowering.
     assert '- src/x.py: recorded 550' in done.stderr
     assert 'records are loose' in done.stderr
+
+
+def test_a_loose_merge_under_require_tight_false_leaves_main_green(tmp_path):
+    # Issue 35: under 'false' a pull request shrinks one recorded file and
+    # deletes another without touching the records; the merged tree's
+    # default-branch run names each loose entry as a notice and passes,
+    # while 'true' over the same tree still fails naming them.
+    repo = make_repo(tmp_path, branch='master', files={
+        'src/x.py': 'a\n' * 905, 'src/y.py': 'b\n' * 600})
+    base = put_records(repo, {'src/x.py': 905, 'src/y.py': 600})
+    add_and_commit(repo, 'src/x.py', 'a\n' * 900, 'shrink x')
+    git(repo, 'rm', '-q', 'src/y.py')
+    git(repo, 'commit', '-qm', 'delete y')
+    done = run_gate(repo, 'auto', base_ref=base, default_branch='master',
+                    require_tight='false',
+                    extra_env={'GITHUB_EVENT_NAME': 'pull_request'})
+    assert done.returncode == 0, done.stderr
+    assert ('::notice::src/x.py: stale (the file shrank below its record); '
+            'recorded 905, now 900\n') in done.stdout
+    push = {'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/master'}
+    done = run_gate(repo, 'auto', default_branch='master',
+                    require_tight='false', extra_env=push)
+    assert done.returncode == 0, done.stderr
+    assert done.stderr == ''
+    assert ('::notice::loose record: ~ src/x.py: required 900, recorded 905\n'
+            in done.stdout)
+    assert '::notice::loose record: - src/y.py: recorded 600\n' in done.stdout
+    done = run_gate(repo, 'auto', default_branch='master',
+                    require_tight='true', extra_env=push)
+    assert done.returncode == 1
+    assert '~ src/x.py: required 900, recorded 905' in done.stderr
+    assert '- src/y.py: recorded 600' in done.stderr
 
 
 def test_a_touching_pull_request_must_make_the_entry_exact(tmp_path):

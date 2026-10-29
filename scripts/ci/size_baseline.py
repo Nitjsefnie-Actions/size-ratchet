@@ -243,7 +243,8 @@ def run(root, records_path, member_input, mode, base_ref, policy,
     # Check judges one revision: the tree and its records both from HEAD.
     head_map = records.read_map_at(root, 'HEAD', records_path, member)
     if mode == 'verify':
-        return _verify(root, records_path, member, entries, policy, head_map)
+        return _verify(root, records_path, member, entries, policy, head_map,
+                       require_tight)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -364,7 +365,8 @@ def _diff_report_subset(required, actual, paths):
             if line[2:].startswith(tuple(keep))]
 
 
-def _verify(root, records_path, member, entries, policy, head_map):
+def _verify(root, records_path, member, entries, policy, head_map,
+            require_tight):
     """The default-branch run: records must already be tight, since
     tighten here would only write an uncommitted checkout."""
     if head_map is None:
@@ -374,6 +376,12 @@ def _verify(root, records_path, member, entries, policy, head_map):
     recorded = set(head_map)
     sizes = measure(root, entries, policy, recorded, records_path)
     expected = tightened(head_map, sizes, policy)
+    if expected is not None and not require_tight:
+        for line in _diff_report(expected, head_map):
+            print(f'::notice::loose record: {line}')
+        print('size-ratchet: require-tight is false, so the loose records '
+              'above are notices; tighten writes them')
+        return 0
     if expected is not None:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         print('  the records are loose; tighten over this tree writes:',
