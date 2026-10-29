@@ -39,12 +39,12 @@ def test_a_push_beside_pull_request_carries_a_branches_filter():
 # (default branch, pushed branch, a push run starts, steps that run)
 PUSH_RUNS = [
     ('main', 'main', True, 2), ('main', 'master', True, 0),
-    ('main', 'trunk', False, 0), ('main', 'issue-38', False, 0),
+    ('main', 'trunk', False, 0), ('main', 'mainline', False, 0),
     ('master', 'master', True, 2), ('master', 'main', True, 0),
-    ('master', 'feature/x', False, 0),
+    ('master', 'master-fix', False, 0),
     # The documented limit: another default branch gets no standalone run.
     ('trunk', 'trunk', False, 0), ('trunk', 'main', True, 0),
-    ('trunk', 'master', True, 0), ('trunk', 'issue-38', False, 0),
+    ('trunk', 'master', True, 0), ('trunk', 'feature/x', False, 0),
 ]
 
 
