@@ -41,7 +41,8 @@ inputs:
   mode:
     description: >-
       auto checks pull requests and verifies a push to the default branch
-      (the records must already be tight); check or tighten forces one.
+      (the records must already be tight, or under require-tight false each
+      loose entry is a notice); check or tighten forces one.
       Other events fail closed.
     required: false
     default: 'auto'
@@ -59,7 +60,8 @@ inputs:
     description: >-
       true (default) fails a check whose touched entries differ from what
       tighten would write over the head tree; entries the pull request
-      leaves untouched stay a stale notice.
+      leaves untouched stay a stale notice. false fails neither, and the
+      default-branch run reports each loose entry as a notice.
     required: false
     default: 'true'
 runs:
