@@ -74,7 +74,9 @@ or pin.
 `auto` checks a pull request against the base revision's records, and on
 a push to the repository's actual default branch it verifies the records
 are exactly what tighten would write over that tree — every entry the
-default branch holds loose is named. Other events, including pushes to
+default branch holds loose is named. Under `require-tight: 'false'` a
+pull request need not tighten the entries it loosens, so that run names
+each loose entry as a notice and passes. Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
 closed and name the event. A `mode: check` forced by editing the block
 must supply `base-ref` when the event has no PR base SHA.
@@ -137,7 +139,7 @@ adoption.
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
 | `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch verification. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'true'` | Fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. |
+| `require-tight` | `'true'` | Fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and the default-branch run reports each loose entry as a notice. |
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
 malformed line, an unknown type, a folder without a trailing `/`, a
