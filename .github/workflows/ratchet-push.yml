@@ -12,8 +12,9 @@ name: ratchet push
 # thresholds data when present, and pushes one records-only commit when
 # there is a change.
 #
-# THE GATE PROTECTS THE PUSH TWICE: only a fully green main gate stages data,
-# and only a completed successful push run reaches this job. No code is
+# THE GATE PROTECTS THE PUSH TWICE: the measured cell stages data only after
+# its own suite and coverage gate pass, and only a tests push run whose
+# conclusion is success reaches this job. No code is
 # checked out, no fetched helper executes, and nothing is installed. Git
 # plumbing in a bare scratch repository updates only the records blobs and
 # builds the new tree from the fetched index; the JSON validators run with
