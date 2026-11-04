@@ -100,11 +100,13 @@ there.
 
 ## Records
 
-The coverage floor tightens on every default-branch push. After the
-aggregate gate is green on main, the tests workflow's measured cell stages
-a `ci-thresholds-ratchet` artifact when the measured coverage total clears
-the recorded one by more than the hysteresis (a lower or barely-better
-measurement stages nothing).
+The coverage floor tightens on every default-branch push. Once its own
+suite and coverage gate pass on main, the tests workflow's measured cell
+stages a `ci-thresholds-ratchet` artifact when the measured coverage total
+clears the recorded one by more than the hysteresis (a lower or
+barely-better measurement stages nothing). Another job can still fail
+after it, so a staged artifact lands only from a tests run that succeeded
+as a whole.
 
 The separate top-level [ratchet-push workflow](.github/workflows/ratchet-push.yml)
 lands the result. It admits only successful main push runs of the tests
