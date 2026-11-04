@@ -1,18 +1,16 @@
 name: ratchet push
 
-# The data-only push half of the records ratchets. The measuring jobs stay
-# keyless: tests gates the coverage floor, and comment share gates the
-# per-file comment-share records. The size records moved into the pull
-# requests that change the files (the install block's require-tight), so
-# no size arm remains here. Each stages data only when its record moves.
-# The push lives HERE, a top-level workflow where environment: main-push
-# resolves, keyed on either gate run's completion.
+# The data-only push half of the coverage-floor ratchet. The measuring job
+# stays keyless: tests gates the coverage floor and stages data only when
+# the floor moves. The size and comment-share records move in the pull
+# requests that change the files (each install block's own check), so no
+# arm for either remains here. The push lives HERE, a top-level workflow
+# where environment: main-push resolves, keyed on the gate run's completion.
 #
 # tests.yml stages ci-thresholds-ratchet from its measured cell on a main
-# push; comment-share.yml stages comment-share-ratchet only after its gate
-# step passes on a main push. This workflow lists the triggering run's
-# artifacts, downloads each one present, and pushes one records-only
-# commit when there is a change.
+# push. This workflow lists the triggering run's artifacts, downloads the
+# thresholds data when present, and pushes one records-only commit when
+# there is a change.
 #
 # THE GATE PROTECTS THE PUSH TWICE: only a fully green main gate stages data,
 # and only a completed successful push run reaches this job. No code is
@@ -27,19 +25,18 @@ name: ratchet push
 # a conflicting or unreadable records merge, and a push rejected after main
 # moved all drop this run's data, so the next main run measures again.
 #
-# The records commit starts both gates once more. JSON records are not
-# measured by either action, so tightening again leaves them unchanged.
-# Neither gate stages anything on that no-change path: there is no artifact
-# and no second push.
+# The records commit starts the gate once more. The coverage measurement
+# does not read the JSON, so it stages nothing on that no-change path: there
+# is no artifact and no second push.
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    # The two gate workflows' names, the runs carrying the artifacts on a
-    # main push. The trigger's usual hazard does not apply: the job admits
+    # The gate workflow's name, the run carrying the artifact on a main
+    # push. The trigger's usual hazard does not apply: the job admits
     # only successful push runs on main, downloads this repository's
     # triggering-run data, checks out no code, executes nothing from an
     # artifact or fetched tree, and authenticates with the environment
     # deploy key, not the job token.
-    workflows: [tests, comment share]
+    workflows: [tests]
     types: [completed]
 permissions: {}
 concurrency:
@@ -74,36 +71,14 @@ jobs:
             "repos/$SIZE_RATCHET_REPO/actions/runs/$SIZE_RATCHET_RUN_ID/artifacts" \
             --jq '.artifacts[] | select(.expired != true) | .name' \
             | sort -u)"
-          records=false
           thresholds=false
-          if printf '%s\n' "$names" | grep -qx 'comment-share-ratchet'; then
-            records=true
-          fi
           if printf '%s\n' "$names" | grep -qx 'ci-thresholds-ratchet'; then
             thresholds=true
           fi
-          echo "records=$records" >> "$GITHUB_OUTPUT"
-          any=false
-          if [ "$records" = true ] || [ "$thresholds" = true ]; then
-            any=true
-          fi
-          echo "any=$any" >> "$GITHUB_OUTPUT"
-          # Emitted last so no three redirects to the same file sit
-          # adjacent: shellcheck reads that as one foldable block (SC2129).
           echo "thresholds=$thresholds" >> "$GITHUB_OUTPUT"
 
-      - name: Download the comment-share records
-        # Each gate has its own artifact name and measured base. This is
-        # also a cross-run download, capped by the job's actions: read.
-        if: steps.list.outputs.records == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: comment-share-ratchet
-          path: ${{ runner.temp }}/comment-share-data
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
-
       - name: Download the thresholds data
+        # A cross-run download, capped by the job's actions: read.
         if: steps.list.outputs.thresholds == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -113,12 +88,10 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Push the ratchet commit to main
-        if: steps.list.outputs.any == 'true'
+        if: steps.list.outputs.thresholds == 'true'
         env:
           SIZE_RATCHET_MASTER_PUSH_DEPLOY_KEY: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
           SIZE_RATCHET_REPO: ${{ github.repository }}
-          SIZE_RATCHET_RECORDS_SELECTED: ${{ steps.list.outputs.records }}
-          SIZE_RATCHET_THRESHOLDS_SELECTED: ${{ steps.list.outputs.thresholds }}
         run: |
           # Fail closed: with no key there is nothing to authenticate the
           # push with, and the fallback must never be a token.
@@ -128,11 +101,7 @@ jobs:
           fi
           # Absence of an artifact is the no-op signal; a selected artifact
           # without its promised JSON is a broken handoff, not a no-tighten.
-          if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/comment-share-data/comment-share.json" ]; then
-            echo "artifact comment-share-ratchet is missing comment-share.json" >&2
-            exit 1
-          fi
-          if [ "$SIZE_RATCHET_THRESHOLDS_SELECTED" = true ] && [ ! -f "$RUNNER_TEMP/thresholds-data/ci-thresholds.json" ]; then
+          if [ ! -f "$RUNNER_TEMP/thresholds-data/ci-thresholds.json" ]; then
             echo "artifact ci-thresholds-ratchet is missing ci-thresholds.json" >&2
             exit 1
           fi
@@ -158,12 +127,11 @@ jobs:
           git -C "$scratch" remote add origin "$remote"
           git -C "$scratch" fetch --quiet origin main
           fetched="$(git -C "$scratch" rev-parse FETCH_HEAD)"
-          # A run can stage several artifacts at once (both arms can ride
-          # the same tests run), and one shared index carries every arm's
-          # update. No source is checked out by read-tree.
+          # The index carries the records update. No source is checked out
+          # by read-tree.
           git -C "$scratch" read-tree "$fetched"
-          # Each arm lands one records file: its artifact directory, its
-          # path on main, and the measuring gate's name for the summary.
+          # land() lands one records file: its artifact directory, its path
+          # on main, and the measuring gate's name for the summary.
           land() {
             data="$RUNNER_TEMP/$1"
             records="$2"
@@ -182,10 +150,10 @@ jobs:
             fi
             if [ "$fetched" != "$base" ]; then
               # A measurement older than any non-records change on main is
-              # stale: landing it could put a record below the file's real
-              # count, and tighten never raises one, so no later run could
-              # repair it. Records-file edits alone are fine — the merge
-              # below preserves them.
+              # stale: landing it could put the floor above the coverage
+              # main now measures, and the floor never falls, so no later
+              # run could repair it. Records-file edits alone are fine — the
+              # merge below preserves them.
               if [ -n "$(git -C "$scratch" diff --name-only "$base" "$fetched" \
                     -- ':!.github/size-baseline.json' ':!.github/comment-share.json' ':!.github/ci-thresholds.json')" ]; then
                 echo '::notice::Main moved under the measurement; the next main push measures again'
@@ -227,15 +195,7 @@ jobs:
             blob="$(git -C "$scratch" hash-object -w "$current")"
             git -C "$scratch" update-index --add --cacheinfo 100644 "$blob" "$records"
           }
-          landed=''
-          if [ "$SIZE_RATCHET_RECORDS_SELECTED" = true ]; then
-            land comment-share-data .github/comment-share.json comment-share
-            landed="${landed:+$landed and }comment-share"
-          fi
-          if [ "$SIZE_RATCHET_THRESHOLDS_SELECTED" = true ]; then
-            land thresholds-data .github/ci-thresholds.json thresholds
-            landed="${landed:+$landed and }thresholds"
-          fi
+          land thresholds-data .github/ci-thresholds.json thresholds
           tree="$(git -C "$scratch" write-tree)"
           if [ "$tree" = "$(git -C "$scratch" rev-parse "$fetched^{tree}")" ]; then
             echo 'No ratchet move is justified by this run: nothing to commit.'
@@ -243,7 +203,7 @@ jobs:
           fi
           git -C "$scratch" config user.name 'github-actions[bot]'
           git -C "$scratch" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          commit="$(git -C "$scratch" commit-tree "$tree" -p "$fetched" -m "chore(ratchet): tighten $landed records (automated)")"
+          commit="$(git -C "$scratch" commit-tree "$tree" -p "$fetched" -m "chore(ratchet): tighten thresholds records (automated)")"
           if ! git -C "$scratch" push origin "$commit:refs/heads/main"; then
             git -C "$scratch" fetch --quiet origin main
             if [ "$fetched" = "$(git -C "$scratch" rev-parse FETCH_HEAD)" ]; then
