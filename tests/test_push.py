@@ -177,7 +177,7 @@ def test_the_key_is_a_0600_file_for_pinned_ssh_and_gone_after(tmp_path):
         'printf "%s\\n" "$@" "env-key=${SIZE_RATCHET_PUSH_KEY:-}" >> "$log"\n'
         'while [ $# -gt 0 ]; do\n'
         '  case "$1" in\n'
-        '    -i) stat -c "mode %a" "$2" >> "$log"; cat "$2" >> "$log";;\n'
+        '    -i) ls -ld "$2" | cut -c1-10 >> "$log"; cat "$2" >> "$log";;\n'
         '    UserKnownHostsFile=*) cat "${1#UserKnownHostsFile=}" >> "$log";;\n'
         '  esac\n'
         '  shift\n'
@@ -191,14 +191,14 @@ def test_the_key_is_a_0600_file_for_pinned_ssh_and_gone_after(tmp_path):
     assert done[PUSH].returncode == 2
     assert 'reading the branch afterwards failed too' in done[PUSH].stderr
     seen = log.read_text()
-    assert 'mode 600\nSECRET-KEY-TEXT\n' in seen
+    assert '-rw-------\nSECRET-KEY-TEXT\n' in seen
     lines = seen.splitlines()
     for option in ('IdentitiesOnly=yes', 'StrictHostKeyChecking=yes',
                    'GlobalKnownHostsFile=/dev/null'):
         assert option in lines
     assert ['-F', '/dev/null'] in [lines[i:i + 2] for i in range(len(lines))]
     assert 'env-key=' in lines and 'SECRET-KEY-TEXT' not in seen.replace(
-        'mode 600\nSECRET-KEY-TEXT\n', '')
+        '-rw-------\nSECRET-KEY-TEXT\n', '')
     assert ('github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6'
             'UOoqKLsabgH5C9okWi0dh2l9GKJl\n') in seen
     for kind in ('ecdsa-sha2-nistp256 AAAAE2VjZHNh', 'ssh-rsa AAAAB3NzaC1yc2E'):
