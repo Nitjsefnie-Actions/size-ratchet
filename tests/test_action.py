@@ -17,18 +17,21 @@ def action():
     return yaml.safe_load((ACTION_ROOT / 'action.yml').read_text())
 
 
-def step():
+def step(name='Measure and apply the ratchet'):
     steps = action()['runs']['steps']
-    named = [item for item in steps if item.get('name') == 'Measure and apply the ratchet']
+    named = [item for item in steps if item.get('name') == name]
     assert len(named) == 1
     return named[0]
+
+
+PUSH_STEP = 'Push the tightened records'
 
 
 def test_every_input_has_a_default():
     inputs = action()['inputs']
     expected = {
         'ceilings', 'overrides', 'exclude', 'unclassified', 'records',
-        'member', 'mode', 'base-ref', 'stale', 'require-tight',
+        'member', 'mode', 'base-ref', 'stale', 'require-tight', 'push-key',
     }
     assert set(inputs) == expected
     for name, spec in inputs.items():
@@ -43,17 +46,36 @@ def test_base_ref_defaults_to_the_pull_request_base():
 
 def test_inputs_reach_the_runner_through_env_only():
     env = step()['env']
-    inputs = action()['inputs']
+    inputs = set(action()['inputs']) - {'push-key'}
     for name in inputs:
-        assert f'SIZE_RATCHET_{name.upper().replace("-", "_")}' in env, name
-    for name, value in env.items():
-        if name.startswith('SIZE_RATCHET_'):
-            assert value.startswith('${{ inputs.') or \
-                value == '${{ github.event.repository.default_branch }}', \
-                f'env {name} passes neither an input nor the event context'
-    run_text = step()['run']
-    assert '${{ inputs.' not in run_text
-    assert '${{' not in run_text
+        assert env[f'SIZE_RATCHET_{name.upper().replace("-", "_")}'] == \
+            f'${{{{ inputs.{name} }}}}', name
+    assert set(env) == {f'SIZE_RATCHET_{name.upper().replace("-", "_")}'
+                        for name in inputs} | {
+        'SIZE_RATCHET_DEFAULT_BRANCH', 'SIZE_RATCHET_PUSH_KEY_SET'}
+    assert env['SIZE_RATCHET_DEFAULT_BRANCH'] == \
+        '${{ github.event.repository.default_branch }}'
+    assert env['SIZE_RATCHET_PUSH_KEY_SET'] == "${{ inputs.push-key != '' }}"
+    for name in ('Measure and apply the ratchet', PUSH_STEP):
+        assert '${{' not in step(name)['run'], name
+
+
+def test_the_key_reaches_the_push_step_alone():
+    # Security invariant over every step of the action: only the push
+    # step's environment carries the key.
+    carriers = [item.get('name') for item in action()['runs']['steps']
+                if 'inputs.push-key }}' in str(item)]
+    assert carriers == [PUSH_STEP]
+    push = step(PUSH_STEP)
+    assert push['env'] == {
+        'SIZE_RATCHET_PUSH_KEY': '${{ inputs.push-key }}',
+        'SIZE_RATCHET_RECORDS': '${{ inputs.records }}',
+        'SIZE_RATCHET_DEFAULT_BRANCH':
+            '${{ github.event.repository.default_branch }}'}
+    assert push['if'] == "steps.measure.outputs.push == 'true'"
+    assert step()['id'] == 'measure'
+    assert push['run'].strip() == \
+        'python3 -I "$GITHUB_ACTION_PATH/run.py" --push'
 
 
 def test_the_runner_runs_isolated_and_validates_first():
@@ -66,15 +88,15 @@ def test_the_runner_runs_isolated_and_validates_first():
 
 
 def test_the_action_installs_nothing():
-    run_text = step()['run']
-    for forbidden in ('pip install', 'npm ', 'npm ci', 'venv', 'curl', 'wget'):
-        assert forbidden not in run_text, forbidden
     steps = action()['runs']['steps']
-    # Exactly two steps: setup-python (whatever release Dependabot pins)
-    # and the runner, which is a run: step and installs nothing.
-    assert len(steps) == 2
+    # Exactly three steps: setup-python (whatever release Dependabot pins),
+    # the runner and the push, run: steps that install nothing.
+    assert len(steps) == 3
     assert steps[0]['uses'].startswith('actions/setup-python@')
-    assert 'uses' not in steps[1] and 'run' in steps[1]
+    for item in steps[1:]:
+        assert 'uses' not in item and 'run' in item
+        for forbidden in ('pip install', 'npm ', 'venv', 'curl', 'wget'):
+            assert forbidden not in item['run'], forbidden
 
 
 def test_validate_only_judges_the_inputs_alone(tmp_path):
@@ -93,4 +115,4 @@ def test_validate_only_judges_the_inputs_alone(tmp_path):
 
 
 def test_the_composite_uses_a_bash_shell():
-    assert step()['shell'] == 'bash'
+    assert step()['shell'] == step(PUSH_STEP)['shell'] == 'bash'

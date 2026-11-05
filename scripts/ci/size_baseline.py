@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import deliver
 import records
 
 
@@ -231,7 +232,7 @@ def _diff_report(required, actual):
 
 
 def run(root, records_path, member_input, mode, base_ref, policy,
-        stale, require_tight):
+        stale, require_tight, push_key_set=False):
     """The gate over one checkout. Returns 0 or 1; raises on failure."""
     member = member_input or records.DEFAULT_MEMBER
     records.validate_path(root, records_path)
@@ -244,7 +245,7 @@ def run(root, records_path, member_input, mode, base_ref, policy,
     head_map = records.read_map_at(root, 'HEAD', records_path, member)
     if mode == 'verify':
         return _verify(root, records_path, member, entries, policy, head_map,
-                       require_tight)
+                       require_tight, push_key_set)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -366,10 +367,11 @@ def _diff_report_subset(required, actual, paths):
 
 
 def _verify(root, records_path, member, entries, policy, head_map,
-            require_tight):
-    """The default-branch run: records must already be tight (under
-    require-tight false a loose entry is a notice), since tighten here
-    would only write an uncommitted checkout."""
+            require_tight, push_key_set):
+    """The default-branch run: with a push key, stage what tighten writes;
+    without one, the records must be tight (or warn, require-tight false)."""
+    if push_key_set:
+        deliver.check_head(root)
     if head_map is None:
         print('size-ratchet: no records on the default branch; '
               'nothing to verify')
@@ -377,11 +379,14 @@ def _verify(root, records_path, member, entries, policy, head_map,
     recorded = set(head_map)
     sizes = measure(root, entries, policy, recorded, records_path)
     expected = tightened(head_map, sizes, policy)
+    if push_key_set:
+        return _stage(root, records_path, member, head_map, expected)
     if expected is not None and not require_tight:
         for line in _diff_report(expected, head_map):
-            print(f'::notice::loose record: {line}')
+            print(f'::warning::loose record: {line} (push-key is unset, '
+                  'so no run commits it)')
         print('size-ratchet: require-tight is false, so the loose records '
-              'above are notices; tighten writes them')
+              'above are warnings; set push-key to commit them')
         return 0
     if expected is not None:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
@@ -389,12 +394,24 @@ def _verify(root, records_path, member, entries, policy, head_map,
               file=sys.stderr)
         for line in _diff_report(expected, head_map):
             print(f'  {line}', file=sys.stderr)
-        print('lower or drop each named entry in a pull request that '
-              'touches the file, or commit the tightened records to the '
-              'default branch', file=sys.stderr)
+        print('push-key is unset, so no run commits them: set it, or '
+              'lower or drop each named entry in a pull request',
+              file=sys.stderr)
         return 1
     print(f'size-ratchet: records are tight over {len(sizes)} '
           'measured files')
+    return 0
+
+
+def _stage(root, records_path, member, head_map, expected):
+    """Stage a loose map; tighten keeps a grown record, never raised."""
+    if expected is None:
+        print('size-ratchet: records are tight; nothing to push')
+        return 0
+    deliver.stage(root, records_path, member, expected)
+    print('size-ratchet: staged the tightened records for the push:')
+    for line in _diff_report(expected, head_map):
+        print(f'  {line}')
     return 0
 
 

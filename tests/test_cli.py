@@ -338,9 +338,11 @@ def test_auto_verifies_a_push_to_the_default_branch(tmp_path):
     # entry fails naming what tighten writes, and nothing is ever written.
     repo = make_repo(tmp_path, {'src/big.py': 'x\n' * 500})
     put_records(repo, {'src/big.py': 550})
-    done = run_gate(repo, 'auto', default_branch='main', extra_env={
-        'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'})
+    done = run_gate(repo, 'auto', default_branch='main', require_tight='true',
+                    extra_env={'GITHUB_EVENT_NAME': 'push',
+                               'GITHUB_REF': 'refs/heads/main'})
     assert done.returncode == 1
+    assert 'push-key is unset, so no run commits them' in done.stderr
     # 500 is at the ceiling: the record graduates, so tighten writes a
     # drop, not a lowering.
     assert '- src/big.py: recorded 550' in done.stderr
