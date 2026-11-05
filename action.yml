@@ -35,7 +35,8 @@ inputs:
   member:
     description: >-
       Top-level key of the records file holding the baseline map, instead
-      of "baseline". Every other key is preserved byte-for-byte on write.
+      of "baseline". Every other key but tree-budgets' "trees" is
+      preserved byte-for-byte on write.
     required: false
     default: ''
   mode:
@@ -75,6 +76,14 @@ inputs:
       pushes nothing.
     required: false
     default: ''
+  tree-budgets:
+    description: >-
+      Multiline `"<folder>/"` lines, each budgeting the total line count of
+      every text file under that folder in the records file's `trees` map.
+      A budget falls with its tree and rises only in a range carrying a
+      feat commit. Empty (default) budgets no tree.
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -99,6 +108,7 @@ runs:
         SIZE_RATCHET_BASE_REF: ${{ inputs.base-ref }}
         SIZE_RATCHET_STALE: ${{ inputs.stale }}
         SIZE_RATCHET_REQUIRE_TIGHT: ${{ inputs.require-tight }}
+        SIZE_RATCHET_TREE_BUDGETS: ${{ inputs.tree-budgets }}
         SIZE_RATCHET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         # Whether a key was passed, never the key: it exists only below.
         SIZE_RATCHET_PUSH_KEY_SET: ${{ inputs.push-key != '' }}

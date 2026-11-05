@@ -63,6 +63,7 @@ jobs:
           stale: 'warn'
           require-tight: 'false'
           push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
+          tree-budgets: ''
 ```
 
 The `with:` block shows **every input with its default**. Omit it and a
