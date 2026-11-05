@@ -132,7 +132,8 @@ loose record is never a failure, and a record its file grew past stays
 as recorded, never raised: growth fails the next pull request checked
 against it, the one that causes it unless two merged pull requests grew
 the file together.
-The run fails only on a malformed records file or a refused push. When the push is
+The run fails only on a malformed records file, a refused push, or a
+tree total above its budget (see Tree budgets). When the push is
 refused and a fresh read of the remote shows the branch moved past `github.sha`, the
 run pushes nothing and passes with a notice — the newer push's run
 measures again; the action never merges or rebases a records file. A
@@ -345,11 +346,16 @@ empty, the default, nothing reads, judges or writes `trees`.
   unreadable history fails with exit 2, and is read only when a budget
   rises. Under `require-tight: 'true'`, a folder whose total or budget
   moved between base and head must record exactly the head's total.
-- **The default-branch run** fails when a total exceeds its budget, under
-  either `require-tight`. A budget above its total, a missing budget, or a
-  budget for an unlisted folder is loose: a failure under
-  `require-tight: 'true'`, a notice under `'false'`. A records file
-  holding only `trees` is records.
+- **The default-branch run** fails when a total exceeds its budget, with
+  or without `push-key`, under either `require-tight`. A budget above its
+  total, a missing budget, or a budget for an unlisted folder is loose,
+  exactly like a loose per-file record (see Records on the default
+  branch): a run with `push-key` commits the tightened `trees` map in one
+  records commit with any tightened per-file map, and with no records
+  file at all commits the document tighten creates, both maps; a called run
+  without the key names it in a notice; the block's own run without the
+  key fails on it under `require-tight: 'true'` and warns under
+  `'false'`. A records file holding only `trees` is records.
 
 With `tree-budgets` set, the per-file gate and the tree budgets each
 report their verdict, and the run fails when either fails.
