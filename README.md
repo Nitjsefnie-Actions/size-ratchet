@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
-        uses: Nitjsefnie-Actions/size-ratchet@cb0deb632f24962ed3aee44811c576b7b8e9ba29 # v2.0.4
+        uses: Nitjsefnie-Actions/size-ratchet@ab08cddb95b6b41ccd5ba9940a5bb79b343b0fcd # v3.0.0
         with:
           ceilings: ''
           overrides: ''
