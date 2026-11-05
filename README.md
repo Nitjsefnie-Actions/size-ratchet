@@ -18,7 +18,7 @@ and its steps resolve the actual default branch at run time, so a
 repository whose default branch is either edits nothing outside the
 `with:` block. A default branch with any other name is added to that
 `branches:` list; without it, pull requests are still checked but the
-default branch gets no standalone verification run. The action reference is consumed by commit SHA — a
+default branch gets no standalone push run. The action reference is consumed by commit SHA — a
 tag is a moving pointer — so pin the release's commit and keep the
 `# vX.Y.Z` comment beside it, as the block below does for the latest
 release. The file may also be one a consumer's own workflow already calls
@@ -83,29 +83,32 @@ tree is ever imported or executed, and there is no dependency to install
 or pin.
 
 `auto` checks a pull request against the base revision's records, and on
-a push to the repository's actual default branch it verifies the records
-are exactly what tighten would write over that tree — every entry the
-default branch holds loose is named. Under `require-tight: 'false'` a
-pull request need not tighten the entries it loosens, so that run names
-each loose entry as a notice and passes. Other events, including pushes to
+a push to the repository's actual default branch it tightens the records
+over that tree and commits the result (see Records on the default
+branch). A pull request need not tighten the entries it loosens: under
+the default `require-tight: 'false'` that run names each loose entry as a
+notice and passes, and it still fails on growth past a record. Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
 closed and name the event. A `mode: check` forced by editing the block
 must supply `base-ref` when the event has no PR base SHA.
 
 A consumer whose aggregate workflow calls
 `.github/workflows/size-baseline.yml` with `uses:` adopts by saving the
-block over that file: no other workflow edit and no ruleset change, and
-the size leg stays inside the required aggregate. A called run sees the
+block over that file and adding `secrets: inherit` to the calling job:
+GitHub's reusable-workflow documentation resolves an environment secret
+in a called job only when the caller passes it, and without it `push-key`
+arrives empty (see Records on the default branch). The size leg stays
+inside the required aggregate. A called run sees the
 caller's event: on the caller's `pull_request` it checks the pull
-request, on a caller push to the default branch it verifies the
-records, and on any other caller event the job completes green without
+request, on a caller push to the default branch it does what the
+standalone push run does, and on any other caller event the job completes green without
 measuring, so a fold that requires the calling job reports. A consumer
 that calls the block also gets the block's own standalone run on a pull
 request and on a push to `main` or `master`; on a pull request and on a
 push to a default branch with either name, both run the same check on
 the same tree. The `push:` filter binds only that standalone run: a
 called run follows the caller's triggers, so a caller push to a default
-branch of any name verifies the records. A standalone run
+branch of any name tightens the records. A standalone run
 shares its group with its own ref's earlier run and replaces a
 superseded one. A called run takes the calling run's group
 (`github.run_id` is the caller's run id), so no other run of the block,
@@ -114,32 +117,66 @@ than once — those invocations share a group and can cancel or queue
 each other. A caller workflow named `size baseline`, in any letter
 case, would also share the standalone group — name it anything else.
 
-Records are tightened in pull requests, never delivered by a job:
-`require-tight` is on by default, so a pull request that shrinks, deletes
-or excludes a recorded file — or graduates one by shrinking it below its
+### Records on the default branch
+
+The block's job commits the records on the default branch. On a push
+there with a non-empty `push-key`, the action first checks that the
+checkout's `HEAD` is `github.sha` and fails otherwise. It tightens over
+that tree; when nothing changes it pushes nothing, so the records
+commit's own run ends there. Otherwise it commits only the records file
+on top of `github.sha`, as `github-actions[bot]` with the message
+`ci: tighten size-ratchet records`, and pushes it as a fast-forward. A
+loose record is never a failure, and a record its file grew past stays
+as recorded, never raised: growth fails the next pull request checked
+against it, the one that causes it unless two merged pull requests grew
+the file together.
+The run fails only on a malformed records file or a refused push. When the push is
+refused and a fresh read of the remote shows the branch moved past `github.sha`, the
+run pushes nothing and passes with a notice — the newer push's run
+measures again; the action never merges or rebases a records file. A
+refusal while the branch stands still fails the run and names it.
+
+`push-key` is an SSH write deploy key, the secret
+`MASTER_PUSH_DEPLOY_KEY` of a `<default branch>-push` environment whose
+deployments are limited to the default branch. It must not be a
+repository secret: the key is the `DeployKey` bypass actor of the
+consumer's required-checks ruleset, the one push the ruleset admits
+without checks, and a repository secret is readable by any branch's
+workflow; the built-in token cannot be that bypass actor. The block's
+job-level `environment:` binds that environment only on a default-branch
+push, so its branch policy never refuses a pull-request run, and the same
+file serves a `main` or a `master` repository. The key exists only in
+the action's push step, written to a 0600 file under `RUNNER_TEMP` and
+deleted with it; GitHub's SSH host keys are pinned from GitHub's Meta
+endpoint. Pull requests, fork pull requests included, never push.
+
+With an empty `push-key` nothing commits the records: on a default-branch
+push, loose records fail the run under `require-tight: 'true'`, and under
+`'false'` each one is a `::warning::` naming `push-key` as unset, so a
+consumer without a key never stops tightening silently.
+
+Under `require-tight: 'true'` a pull request that shrinks, deletes or
+excludes a recorded file — or graduates one by shrinking it below its
 ceiling — fails until that entry in the same pull request says what
 tighten would write — lowered, or dropped. A ceiling the pull request
-raises without moving a count is the one shape that stays a stale notice,
-named by the default branch's run until the next touching pull request
-drops the entry. The default branch holds no job that commits records.
-For
+raises without moving a count stays a stale notice either way. For
 initial adoption, run tighten on the proposed head and commit the seed
 in the adoption PR (see Seeding).
 
 Two pull requests checked against the same base can both merge and leave
 a record above its file's count — each lowered the record to its own
 head's count, and the merged tree carries both deletions. The
-default-branch run reports every such entry, and a pull request that
-changes neither the file nor its record still passes; the next pull
-request that touches either must make that entry exact.
+default-branch run tightens every such entry, and a pull request that
+changes neither the file nor its record passes.
 
 A consumer that today delivers size records from its own push job deletes
 exactly that: the size arm of its delivery workflow — the tighten step,
 the artifact staging and the commit — and the tests of that delivery.
 Records files a delivery also lands for other gates keep their arms, and
-the delivery workflow itself stays when they do. No credential, ruleset,
-environment or extra workflow is added: the block above is the whole
-adoption.
+the delivery workflow itself stays when they do. Beyond the block, the
+adoption adds the `<default branch>-push` environment with its
+`MASTER_PUSH_DEPLOY_KEY` secret, the deploy key itself, and that key as
+the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 
 ## Inputs
 
@@ -152,9 +189,10 @@ adoption.
 | `records` | `'.github/size-baseline.json'` | Repository-relative records file. |
 | `member` | `''` | Top-level key of the records file holding the baseline map, instead of `baseline`. |
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
-| `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch verification. |
+| `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch run. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'true'` | Fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and the default-branch run reports each loose entry as a notice. |
+| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and a default-branch run with no `push-key` warns on each loose entry. |
+| `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
 malformed line, an unknown type, a folder without a trailing `/`, a
@@ -223,7 +261,7 @@ counts bind the comparison. Each failure names
 the path, its measured lines, and the record or ceiling it exceeded. A
 recorded entry whose file shrank, was deleted, was excluded, or is at or
 below its ceiling is **stale**: `stale: warn` reports it as a notice;
-`stale: fail` fails the run. `require-tight` (on by default) also fails
+`stale: fail` fails the run. `require-tight: 'true'` also fails
 when an entry the pull request changes — its file's count moved between
 the base and head trees, or its record moved between the base and head
 maps — differs from what tighten would write, naming each entry and what
@@ -240,10 +278,10 @@ any entry added for a file at or below its ceiling, is refused.
 entries for deleted, excluded and graduated (at or below the ceiling)
 files, and keeps an entry whose file has no ceiling, lowered to its count.
 It never raises or adds an entry except when seeding. A run with nothing to
-change writes nothing and passes. A job never commits the result: pull
-requests carry tightened records (`require-tight`), and the default
-branch's own run verifies them. Force `tighten` to seed, or to write the
-records file for a deliberate commit.
+change writes nothing and passes. Forced `tighten` writes only the
+checkout; on a default-branch push `auto` commits what tighten writes
+(see Records on the default branch). Force `tighten` to seed, or to write
+the records file for a deliberate commit.
 
 ## Seeding
 
