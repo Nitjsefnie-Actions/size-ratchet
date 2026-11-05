@@ -137,13 +137,13 @@ def _member_value(text, members, key):
     return None
 
 
-def _parse_map(path, value_text, role):
+def _parse_map(path, value_text, member):
     value = json.loads(value_text)
     if not isinstance(value, dict):
-        raise _error(path, f'the {role} value is not a JSON object')
+        raise _error(path, f'the {member} value is not a JSON object')
     for key, count in value.items():
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            raise _error(path, f'{role} entry {key!r} is not a line count')
+            raise _error(path, f'{member} entry {key!r} is not a line count')
     return value
 
 
@@ -179,7 +179,7 @@ def parse_document(data: bytes, display_path, member: str):
     if member not in values:
         return None
     return _parse_map(display_path, _member_value(text, members, member),
-                      'baseline')
+                      member)
 
 
 def read_map_at(root: Path, revision: str, records: str, member: str):

@@ -106,14 +106,37 @@ def test_read_document_rejects_a_foreign_schema_version(tmp_path):
         records.read_document(path, 'baseline')
 
 
-def test_read_document_rejects_non_line_counts(tmp_path):
+@pytest.mark.parametrize('member', ['baseline', 'sizes'])
+def test_read_document_names_the_member_holding_a_non_object(tmp_path, member):
     path = tmp_path / 'doc.json'
-    path.write_text('{"schema_version": 1, "baseline": {"a.py": true}}\n')
-    with pytest.raises(ValueError, match='not a line count'):
-        records.read_document(path, 'baseline')
-    path.write_text('{"schema_version": 1, "baseline": {"a.py": -1}}\n')
-    with pytest.raises(ValueError, match='not a line count'):
-        records.read_document(path, 'baseline')
+    path.write_text(f'{{"schema_version": 1, "{member}": [1]}}\n')
+    with pytest.raises(ValueError) as raised:
+        records.read_document(path, member)
+    assert str(raised.value) == \
+        f'records file {path}: the {member} value is not a JSON object'
+
+
+@pytest.mark.parametrize('member', ['baseline', 'sizes'])
+@pytest.mark.parametrize('count', ['true', '-1'])
+def test_read_document_names_the_member_holding_a_bad_entry(tmp_path, member,
+                                                             count):
+    path = tmp_path / 'doc.json'
+    path.write_text(f'{{"schema_version": 1, "{member}": {{"a.py": {count}}}}}\n')
+    with pytest.raises(ValueError) as raised:
+        records.read_document(path, member)
+    assert str(raised.value) == \
+        f"records file {path}: {member} entry 'a.py' is not a line count"
+
+
+def test_the_gate_names_the_malformed_member_it_reads(tmp_path):
+    from tests.helpers import add_and_commit, make_repo, run_gate
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
+    add_and_commit(repo, '.github/size-baseline.json',
+                   '{"schema_version": 1, "sizes": [1]}\n', 'records')
+    done = run_gate(repo, 'tighten', member='sizes')
+    assert done.returncode == 2, done.stderr
+    assert (f'records file {repo / ".github/size-baseline.json"}: '
+            'the sizes value is not a JSON object') in done.stderr
 
 
 def test_read_map_at_reads_the_named_revision(tmp_path):
