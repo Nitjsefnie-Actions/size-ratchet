@@ -14,7 +14,9 @@ BOT = 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.co
 
 
 def push_context(repo, branch='main', sha=None):
-    return {'event_name': 'push', 'ref': f'refs/heads/{branch}',
+    # The block's own run: its workflow is the block's name.
+    return {'workflow': 'size baseline', 'event_name': 'push',
+            'ref': f'refs/heads/{branch}',
             'ref_type': 'branch', 'ref_name': branch,
             'sha': sha or head(repo),
             'event': {'repository': {'default_branch': branch}}}

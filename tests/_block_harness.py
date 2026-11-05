@@ -201,9 +201,9 @@ def block_environment(github_context):
 
 def run_block_as_called(repo, event, ref, payload, workflow='ci-gate',
                         environment_secrets=None, extra_env=None,
-                        inherit=True):
-    """Drive the block as a caller's run would; returns (block steps that
-    ran, run_action's result or None). A secret resolves only from the
+                        inherit=True, inputs=None):
+    """Drive the block as a caller's run would (``inputs`` edit `with:`);
+    returns (block steps that ran, run_action's result or None). A secret resolves only from the
     environment the job binds, and in a called job only when the caller
     passes it (GitHub's reusable-workflow docs)."""
     block = install_block()
@@ -225,8 +225,9 @@ def run_block_as_called(repo, event, ref, payload, workflow='ci-gate',
             continue
         ran += 1
         if 'size-ratchet' in step.get('uses', ''):
-            inputs = {name: render(value, github_context,
-                                   {'secrets': secrets})
-                      for name, value in step['with'].items()}
-            result = run_action(repo, inputs, github_context, extra_env)
+            rendered = {name: render(value, github_context,
+                                     {'secrets': secrets})
+                        for name, value in step['with'].items()}
+            result = run_action(repo, {**rendered, **(inputs or {})},
+                                github_context, extra_env)
     return ran, result

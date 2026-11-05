@@ -52,7 +52,8 @@ def test_inputs_reach_the_runner_through_env_only():
             f'${{{{ inputs.{name} }}}}', name
     assert set(env) == {f'SIZE_RATCHET_{name.upper().replace("-", "_")}'
                         for name in inputs} | {
-        'SIZE_RATCHET_DEFAULT_BRANCH', 'SIZE_RATCHET_PUSH_KEY_SET'}
+        'SIZE_RATCHET_DEFAULT_BRANCH', 'SIZE_RATCHET_PUSH_KEY_SET',
+        'SIZE_RATCHET_CALLED'}
     assert env['SIZE_RATCHET_DEFAULT_BRANCH'] == \
         '${{ github.event.repository.default_branch }}'
     assert env['SIZE_RATCHET_PUSH_KEY_SET'] == "${{ inputs.push-key != '' }}"

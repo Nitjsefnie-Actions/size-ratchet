@@ -232,7 +232,7 @@ def _diff_report(required, actual):
 
 
 def run(root, records_path, member_input, mode, base_ref, policy,
-        stale, require_tight, push_key_set=False):
+        stale, require_tight, push_key_set=False, called=False):
     """The gate over one checkout. Returns 0 or 1; raises on failure."""
     member = member_input or records.DEFAULT_MEMBER
     records.validate_path(root, records_path)
@@ -245,7 +245,7 @@ def run(root, records_path, member_input, mode, base_ref, policy,
     head_map = records.read_map_at(root, 'HEAD', records_path, member)
     if mode == 'verify':
         return _verify(root, records_path, member, entries, policy, head_map,
-                       require_tight, push_key_set)
+                       require_tight, push_key_set, called)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -367,9 +367,10 @@ def _diff_report_subset(required, actual, paths):
 
 
 def _verify(root, records_path, member, entries, policy, head_map,
-            require_tight, push_key_set):
+            require_tight, push_key_set, called):
     """The default-branch run: with a push key, stage what tighten writes;
-    without one, the records must be tight (or warn, require-tight false)."""
+    without one, the records must be tight (or warn, require-tight false;
+    or note, a called run)."""
     if push_key_set:
         deliver.check_head(root)
     if head_map is None:
@@ -381,6 +382,11 @@ def _verify(root, records_path, member, entries, policy, head_map,
     expected = tightened(head_map, sizes, policy)
     if push_key_set:
         return _stage(root, records_path, member, head_map, expected)
+    if expected is not None and called:
+        for line in _diff_report(expected, head_map):
+            print(f'::notice::loose record: {line} (a called run has no '
+                  "push-key; the block's standalone push run commits it)")
+        return 0
     if expected is not None and not require_tight:
         for line in _diff_report(expected, head_map):
             print(f'::warning::loose record: {line} (push-key is unset, '

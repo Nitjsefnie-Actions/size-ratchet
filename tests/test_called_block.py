@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from tests._block_harness import (MEASURE, PUSH, block_environment,
+import yaml
+
+from tests._block_harness import (ACTION_ROOT, MEASURE, PUSH,
+                                  block_environment, install_block, render,
                                   run_block_as_called)
 from tests.helpers import add_and_commit, git, head, make_repo, put_records
 
@@ -54,9 +57,12 @@ def test_a_called_default_branch_push_commits_the_records(tmp_path, branch):
     assert '"src/x.py": 520' in git(remote, 'show', f'{tip}:{RECORDS}')
 
 
+@pytest.mark.parametrize('tight', ['false', 'true'])
 @pytest.mark.parametrize('stored,inherit', [(False, True), (True, False)])
-def test_a_called_push_without_the_key_warns(tmp_path, stored, inherit):
-    # No key in the environment, or a caller that does not pass it.
+def test_a_called_push_without_the_key_passes_on_loose_records(
+        tmp_path, stored, inherit, tight):
+    # No key in the environment, or a caller that does not pass it: the
+    # block's own push run commits, so require-tight never fails this one.
     repo = make_repo(tmp_path, branch='master',
                      files={'src/x.py': 'a\n' * 500})
     put_records(repo, {'src/x.py': 550})
@@ -64,11 +70,23 @@ def test_a_called_push_without_the_key_warns(tmp_path, stored, inherit):
         repo, 'push', 'refs/heads/master',
         {'repository': {'default_branch': 'master'}}, inherit=inherit,
         environment_secrets={'master-push': {'MASTER_PUSH_DEPLOY_KEY': 'k'}}
-        if stored else None)
+        if stored else None, inputs={'require-tight': tight})
     assert ran == 2
     assert done[MEASURE].returncode == 0, done[MEASURE].stderr
-    assert 'push-key is unset' in done[MEASURE].stdout
+    assert done[MEASURE].stderr == ''
+    assert ('::notice::loose record: - src/x.py: recorded 550 (a called '
+            "run has no push-key; the block's standalone push run commits "
+            'it)\n') in done[MEASURE].stdout
+    assert '::warning::' not in done[MEASURE].stdout
     assert PUSH not in done
+
+
+def test_the_block_s_name_is_the_one_run_the_action_treats_as_standalone():
+    # The concurrency group and the action read the same name test.
+    spec = yaml.safe_load((ACTION_ROOT / 'action.yml').read_text())
+    called = spec['runs']['steps'][1]['env']['SIZE_RATCHET_CALLED']
+    assert render(called, {'workflow': install_block()['name']}, {}) == 'false'
+    assert render(called, {'workflow': 'ci-gate'}, {}) == 'true'
 
 
 @pytest.mark.parametrize('default,pushed,bound', [
