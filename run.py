@@ -80,14 +80,23 @@ def main() -> int:
             return deliver.push(root, records_path, env('DEFAULT_BRANCH', ''))
         mode = resolve_mode(requested)
         base = env('BASE_REF', '') if mode == 'check' else ''
+        keyed = env('PUSH_KEY_SET', 'false') == 'true'
+        called = env('CALLED', 'false') == 'true'
+        # Both halves stage into one document: one commit, one push.
+        staged = {}
         verdict = policy.run(root, records_path, member, mode, base,
-                             policy_out, stale, require_tight,
-                             env('PUSH_KEY_SET', 'false') == 'true',
-                             env('CALLED', 'false') == 'true')
+                             policy_out, stale, require_tight, keyed, called,
+                             staged)
         # Empty tree-budgets runs no tree code: trees stays unread.
         if folders:
             verdict = max(verdict, trees.run(root, records_path, folders, mode,
-                                             base, policy_out, require_tight))
+                                             base, policy_out, require_tight,
+                                             keyed, called, staged))
+            if staged and not records.exists_at(root, 'HEAD', records_path):
+                staged = {**policy.staged_seed(root, records_path, member,
+                                               policy_out), **staged}
+        if staged:
+            deliver.stage(root, records_path, staged)
         return verdict
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'size-ratchet failed: {error}', file=sys.stderr)

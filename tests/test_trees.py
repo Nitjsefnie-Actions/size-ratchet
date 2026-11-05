@@ -185,7 +185,8 @@ def test_verify_names_each_loose_tree_budget(tmp_path, trees, line):
     lenient = run_gate(repo, 'auto', default_branch='main', extra_env=PUSH,
                        tree_budgets='tests/', require_tight='false')
     assert lenient.returncode == 0, lenient.stderr
-    assert f'::notice::loose tree budget: {line}\n' in lenient.stdout
+    assert (f'::warning::loose tree budget: {line} (push-key is unset, so '
+            'no run commits it)\n') in lenient.stdout
 
 
 def test_a_records_file_holding_only_trees_is_records(tmp_path):

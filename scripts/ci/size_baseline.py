@@ -232,7 +232,7 @@ def diff_report(required, actual):
 
 
 def run(root, records_path, member_input, mode, base_ref, policy,
-        stale, require_tight, push_key_set=False, called=False):
+        stale, require_tight, push_key_set=False, called=False, staged=None):
     """The gate over one checkout. Returns 0 or 1; raises on failure."""
     member = member_input or records.DEFAULT_MEMBER
     records.validate_path(root, records_path)
@@ -245,7 +245,7 @@ def run(root, records_path, member_input, mode, base_ref, policy,
     head_map = records.read_map_at(root, 'HEAD', records_path, member)
     if mode == 'verify':
         return _verify(root, records_path, member, entries, policy, head_map,
-                       require_tight, push_key_set, called)
+                       require_tight, push_key_set, called, staged)
     return _check(root, member, base_ref, entries, policy, head_map,
                   records_path, stale, require_tight)
 
@@ -367,7 +367,7 @@ def _diff_report_subset(required, actual, paths):
 
 
 def _verify(root, records_path, member, entries, policy, head_map,
-            require_tight, push_key_set, called):
+            require_tight, push_key_set, called, staged):
     """The default-branch run: with a push key, stage what tighten writes;
     without one, the records must be tight (or warn, require-tight false;
     or note, a called run)."""
@@ -381,7 +381,7 @@ def _verify(root, records_path, member, entries, policy, head_map,
     sizes = measure(root, entries, policy, recorded, records_path)
     expected = tightened(head_map, sizes, policy)
     if push_key_set:
-        return _stage(root, records_path, member, head_map, expected)
+        return _stage(member, head_map, expected, staged)
     if expected is not None and called:
         for line in diff_report(expected, head_map):
             print(f'::notice::loose record: {line} (a called run has no '
@@ -409,16 +409,27 @@ def _verify(root, records_path, member, entries, policy, head_map,
     return 0
 
 
-def _stage(root, records_path, member, head_map, expected):
+def _stage(member, head_map, expected, staged):
     """Stage a loose map; tighten keeps a grown record, never raised."""
     if expected is None:
-        print('size-ratchet: records are tight; nothing to push')
+        print('size-ratchet: the per-file records are tight; nothing to '
+              'push for them')
         return 0
-    deliver.stage(root, records_path, member, expected)
+    staged[member] = expected
     print('size-ratchet: staged the tightened records for the push:')
     for line in diff_report(expected, head_map):
         print(f'  {line}')
     return 0
+
+
+def staged_seed(root, records_path, member, policy):
+    """The per-file map tighten writes into an absent records file."""
+    entries = list_tree(root, 'HEAD')
+    seed = tightened(None, measure(root, entries, policy, (), records_path),
+                     policy)
+    print('size-ratchet: no records file on the default branch; staged '
+          'the per-file seed tighten writes beside the tree budgets')
+    return {member or records.DEFAULT_MEMBER: seed}
 
 
 def _check_seed(head_map, sizes, policy):

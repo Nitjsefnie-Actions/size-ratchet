@@ -194,9 +194,7 @@ def read_map_at(root: Path, revision: str, records: str, member: str):
     if checked.returncode != 0:
         raise ValueError(f'base-ref {revision!r} is not a commit this '
                          'checkout can resolve; fetch it and pass its SHA')
-    exists = subprocess_run(
-        ['git', '-C', str(root), 'cat-file', '-e', '--', f'{revision}:{records}'])
-    if exists.returncode != 0:
+    if not exists_at(root, revision, records):
         return None
     shown = subprocess_run(
         ['git', '-C', str(root), 'cat-file', 'blob', '--', f'{revision}:{records}'])
@@ -205,6 +203,11 @@ def read_map_at(root: Path, revision: str, records: str, member: str):
                          f'{shown.stderr.decode(errors="replace").strip()}')
     return parse_document(shown.stdout,
                           f'{revision}:{records}', member)
+
+
+def exists_at(root: Path, revision: str, records: str) -> bool:
+    return subprocess_run(['git', '-C', str(root), 'cat-file', '-e', '--',
+                           f'{revision}:{records}']).returncode == 0
 
 
 def _reindent(value_json, key_indent):
