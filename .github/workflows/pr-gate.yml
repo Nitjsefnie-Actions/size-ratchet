@@ -1,12 +1,11 @@
 name: pr gate
-
 # pull_request_target: a fork's pull_request token is read-only, so its
-# comment and close would silently do nothing. The pinned action reads the
-# template at the PR's base SHA and runs no pull-request code; the body
-# reaches it through the API, never through an expression.
+# comment would silently do nothing. The pinned action reads the template at
+# the PR's base SHA and runs no pull-request code. synchronize re-runs the
+# gate on every push, so its check attaches to each new head.
 on: # zizmor: ignore[dangerous-triggers]
   pull_request_target:
-    types: [opened, edited, reopened, ready_for_review]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
 permissions:
   contents: read
   issues: read
@@ -16,14 +15,16 @@ concurrency:
   cancel-in-progress: false
 jobs:
   gate:
-    # A reopen is authored by github-actions[bot] with this workflow's own
-    # github.token, and GitHub's no-recursion exception holds such an event's
-    # pull_request runs for approval: a draft closed and reopened loses its CI.
-    if: github.event.pull_request.user.type != 'Bot' && github.event.pull_request.draft == false
+    # Bot-authored pull requests are not gated, and a draft is checked when
+    # it is marked ready for review. GitHub reports a skipped job's check as
+    # success, so neither blocks a merge.
+    if: >-
+      github.event.pull_request.user.type != 'Bot'
+      && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: Nitjsefnie-Actions/pr-gate@88281cab989fa0951713be42f9ae4c26683f7719 # v2.4.0
+      - uses: Nitjsefnie-Actions/pr-gate@1ee5bfd4c07f50ed5ef3f946e23e62b8abb96b8f # v3.0.0
         with:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
