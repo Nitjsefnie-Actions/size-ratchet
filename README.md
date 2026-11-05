@@ -155,10 +155,11 @@ run (`github.workflow` is `size baseline`, the test its concurrency group
 uses) nothing else commits the records either: on a default-branch push,
 loose records fail the run under `require-tight: 'true'`, and under
 `'false'` each one is a `::warning::` naming `push-key` as unset, so a
-consumer without a key never stops tightening silently. A called run is
-expected to arrive here without a key; on a default-branch push it never
-fails on a loose record, whatever `require-tight` says, and names each
-one in a `::notice::` saying the block's standalone push run commits it.
+consumer without a key never stops tightening silently. Any other run,
+a workflow that uses the action directly included, is a called run; one
+that arrives here without a key never fails on a loose record on a
+default-branch push, whatever `require-tight` says, and names each one
+in a `::notice::` saying the block's standalone push run commits it.
 
 Under `require-tight: 'true'` a pull request that shrinks, deletes or
 excludes a recorded file — or graduates one by shrinking it below its
