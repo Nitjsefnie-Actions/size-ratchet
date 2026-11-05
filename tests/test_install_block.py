@@ -90,14 +90,36 @@ def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
     assert eval_expression(group, called) == 'size-baseline-called-3699691921'
     assert eval_expression(group, standalone_pr) != eval_expression(group, called)
     assert eval_expression(group, called) != eval_expression(group, later_called)
-    assert eval_expression(
-        group, {'workflow': 'size baseline', 'ref': 'refs/heads/master'}) == \
-        'size-baseline-refs/heads/master'
     # GitHub string equality ignores case: a caller named Size Baseline
     # takes the standalone group too, which is the caveat the README names.
     assert eval_expression(
-        group, {'workflow': 'Size Baseline', 'ref': 'refs/heads/master'}) == \
-        'size-baseline-refs/heads/master'
+        group, {'workflow': 'Size Baseline', 'ref': 'refs/pull/5/merge'}) == \
+        'size-baseline-refs/pull/5/merge'
+    assert install_block()['concurrency']['cancel-in-progress'] is True
+
+
+def test_a_push_run_cancels_no_other_commit_s_run():
+    # The records commit's own push run shares no group with the run that
+    # pushed it or with an earlier commit's run, and a pending run is
+    # replaced even without cancel-in-progress, so each commit is its own
+    # group; a pull request's newer run still replaces its older one.
+    group = install_block()['concurrency']['group']
+
+    def push(ref, sha):
+        return eval_expression(group, {'workflow': 'size baseline',
+                                       'event_name': 'push', 'ref': ref,
+                                       'sha': sha})
+    pushed, records = push('refs/heads/main', 'a1'), push('refs/heads/main', 'b2')
+    assert pushed == 'size-baseline-refs/heads/main-a1'
+    assert records == 'size-baseline-refs/heads/main-b2'
+    # One commit pushed to both filtered branches is two runs.
+    assert push('refs/heads/master', 'a1') == 'size-baseline-refs/heads/master-a1'
+
+    def pull(sha):
+        return eval_expression(group, {'workflow': 'size baseline',
+                                       'event_name': 'pull_request',
+                                       'ref': 'refs/pull/5/merge', 'sha': sha})
+    assert pull('c3') == pull('d4') == 'size-baseline-refs/pull/5/merge'
     assert install_block()['concurrency']['cancel-in-progress'] is True
 
 

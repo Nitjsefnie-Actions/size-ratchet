@@ -36,7 +36,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow == 'size baseline' && format('size-baseline-{0}', github.ref) || format('size-baseline-called-{0}', github.run_id) }}
+  group: ${{ github.workflow == 'size baseline' && format('size-baseline-{0}', github.event_name == 'push' && format('{0}-{1}', github.ref, github.sha) || github.ref) || format('size-baseline-called-{0}', github.run_id) }}
   cancel-in-progress: true
 jobs:
   size-baseline:
@@ -110,9 +110,13 @@ request and on a push to `main` or `master`; on a pull request and on a
 push to a default branch with either name, both run the same check on
 the same tree. The `push:` filter binds only that standalone run, the
 one that commits the records: a default branch named neither `main` nor
-`master` is added to its `branches:` list. A standalone run
-shares its group with its own ref's earlier run and replaces a
-superseded one. A called run takes the calling run's group
+`master` is added to its `branches:` list. A standalone pull request
+run shares its group with that pull request's earlier run and replaces
+a superseded one. A standalone push run's group is its branch and
+commit, so the run the action's own records commit starts cancels
+neither the run that pushed it nor an earlier commit's run, running or
+pending; an older push run whose records push is then refused passes
+(see Records on the default branch). A called run takes the calling run's group
 (`github.run_id` is the caller's run id), so no other run of the block,
 in either arm, shares it unless one caller run invokes the block more
 than once — those invocations share a group and can cancel or queue
