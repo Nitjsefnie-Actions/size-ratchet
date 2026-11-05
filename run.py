@@ -22,6 +22,7 @@ import config
 import deliver
 import records
 import size_baseline as policy
+import trees
 
 
 def env(name, default):
@@ -71,16 +72,23 @@ def main() -> int:
         # One spelling for git: update-index refuses './x' where HEAD:./x reads.
         records_path = posixpath.normpath(records_path)
         policy_out = build_policy()
+        member = env('MEMBER', '')
+        folders = config.parse_tree_budgets(env('TREE_BUDGETS', ''), member)
         if sys.argv[1:] == ['--validate-only']:
             return 0
         if sys.argv[1:] == ['--push']:
             return deliver.push(root, records_path, env('DEFAULT_BRANCH', ''))
         mode = resolve_mode(requested)
         base = env('BASE_REF', '') if mode == 'check' else ''
-        return policy.run(root, records_path, env('MEMBER', ''), mode, base,
-                          policy_out, stale, require_tight,
-                          env('PUSH_KEY_SET', 'false') == 'true',
-                          env('CALLED', 'false') == 'true')
+        verdict = policy.run(root, records_path, member, mode, base,
+                             policy_out, stale, require_tight,
+                             env('PUSH_KEY_SET', 'false') == 'true',
+                             env('CALLED', 'false') == 'true')
+        # Empty tree-budgets runs no tree code: trees stays unread.
+        if folders:
+            verdict = max(verdict, trees.run(root, records_path, folders, mode,
+                                             base, policy_out, require_tight))
+        return verdict
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'size-ratchet failed: {error}', file=sys.stderr)
         return 2

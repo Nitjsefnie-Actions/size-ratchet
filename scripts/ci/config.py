@@ -23,6 +23,7 @@ TYPES = {
 DEFAULT_CEILING = 500
 
 MODES = ('auto', 'check', 'tighten')
+TREES_MEMBER = 'trees'
 STALE = ('warn', 'fail')
 _DIGITS = re.compile(r'[0-9]+')
 
@@ -80,21 +81,37 @@ def parse_overrides(text):
         if not sep:
             raise ValueError(f'input overrides line {line_no} ({raw!r}): '
                              'expected "<folder>/: <ceiling>"')
-        folder = folder.strip()
-        in_error = (f'input overrides line {line_no} ({raw!r})')
-        if not folder.endswith('/'):
-            raise ValueError(f'{in_error}: folder {folder!r} has no trailing /')
-        if folder.startswith('/') or '..' in folder.split('/'):
-            raise ValueError(f'{in_error}: folder {folder!r} is not a '
-                             'repository-relative path prefix')
-        if any(char in folder for char in '*?['):
-            raise ValueError(f'{in_error}: folder {folder!r} carries a '
-                             'wildcard; a folder is a literal path prefix')
-        if folder in parsed:
-            raise ValueError(f'{in_error}: duplicate folder {folder!r}')
+        folder = _folder('overrides', line_no, raw, folder.strip(), parsed)
         parsed[folder] = _positive_int(rest.strip(), 'overrides', line_no,
                                        f'{folder}: {rest}')
     return parsed
+
+
+def _folder(input_name, line_no, raw, folder, seen):
+    in_error = f'input {input_name} line {line_no} ({raw!r})'
+    if not folder.endswith('/'):
+        raise ValueError(f'{in_error}: folder {folder!r} has no trailing /')
+    if folder.startswith('/') or '..' in folder.split('/'):
+        raise ValueError(f'{in_error}: folder {folder!r} is not a '
+                         'repository-relative path prefix')
+    if any(char in folder for char in '*?['):
+        raise ValueError(f'{in_error}: folder {folder!r} carries a '
+                         'wildcard; a folder is a literal path prefix')
+    if folder in seen:
+        raise ValueError(f'{in_error}: duplicate folder {folder!r}')
+    return folder
+
+
+def parse_tree_budgets(text, member):
+    """``<folder>/`` lines; a ``trees`` member would share their key."""
+    folders = []
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        if line := raw.strip():
+            folders.append(_folder('tree-budgets', line_no, raw, line, folders))
+    if folders and member == TREES_MEMBER:
+        raise ValueError(f'input member {member!r} is the key tree-budgets '
+                         'keeps its totals under; name another member')
+    return folders
 
 
 def parse_exclude(text):
