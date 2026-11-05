@@ -94,21 +94,21 @@ must supply `base-ref` when the event has no PR base SHA.
 
 A consumer whose aggregate workflow calls
 `.github/workflows/size-baseline.yml` with `uses:` adopts by saving the
-block over that file and adding `secrets: inherit` to the calling job:
-GitHub's reusable-workflow documentation resolves an environment secret
-in a called job only when the caller passes it, and without it `push-key`
-arrives empty (see Records on the default branch). The size leg stays
+block over that file. An environment secret has been observed to read
+empty inside a `workflow_call` callee, so a called run is expected to
+take the no-key path (see Records on the default branch); the block's
+own push run is the one that commits. The size leg stays
 inside the required aggregate. A called run sees the
 caller's event: on the caller's `pull_request` it checks the pull
-request, on a caller push to the default branch it does what the
-standalone push run does, and on any other caller event the job completes green without
+request, on a caller push to the default branch it measures that tree
+and never fails on a loose record, and on any other caller event the job completes green without
 measuring, so a fold that requires the calling job reports. A consumer
 that calls the block also gets the block's own standalone run on a pull
 request and on a push to `main` or `master`; on a pull request and on a
 push to a default branch with either name, both run the same check on
-the same tree. The `push:` filter binds only that standalone run: a
-called run follows the caller's triggers, so a caller push to a default
-branch of any name tightens the records. A standalone run
+the same tree. The `push:` filter binds only that standalone run, the
+one that commits the records: a default branch named neither `main` nor
+`master` is added to its `branches:` list. A standalone run
 shares its group with its own ref's earlier run and replaces a
 superseded one. A called run takes the calling run's group
 (`github.run_id` is the caller's run id), so no other run of the block,
@@ -150,10 +150,15 @@ the action's push step, written to a 0600 file under `RUNNER_TEMP` and
 deleted with it; GitHub's SSH host keys are pinned from GitHub's Meta
 endpoint. Pull requests, fork pull requests included, never push.
 
-With an empty `push-key` nothing commits the records: on a default-branch
-push, loose records fail the run under `require-tight: 'true'`, and under
+With an empty `push-key` the run commits nothing. In the block's own
+run (`github.workflow` is `size baseline`, the test its concurrency group
+uses) nothing else commits the records either: on a default-branch push,
+loose records fail the run under `require-tight: 'true'`, and under
 `'false'` each one is a `::warning::` naming `push-key` as unset, so a
-consumer without a key never stops tightening silently.
+consumer without a key never stops tightening silently. A called run is
+expected to arrive here without a key; on a default-branch push it never
+fails on a loose record, whatever `require-tight` says, and names each
+one in a `::notice::` saying the block's standalone push run commits it.
 
 Under `require-tight: 'true'` a pull request that shrinks, deletes or
 excludes a recorded file — or graduates one by shrinking it below its
@@ -191,7 +196,7 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
 | `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch run. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and a default-branch run with no `push-key` warns on each loose entry. |
+| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
 | `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
