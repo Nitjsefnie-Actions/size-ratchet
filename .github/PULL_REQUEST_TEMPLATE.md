@@ -16,8 +16,9 @@ Section order is fixed. No new sections. Delete these comments before posting.
 <!-- required: claim the issue with `/claim` before you start, then name it
      here, plus any related work. Closing keywords ONLY here. The named issue
      must be assigned to the PR author. The gate explains every mismatch and
-     closes when the layout fails or this section names no issue, and reopens
-     once fixed. GitHub auto-closes only on merge into the DEFAULT branch. -->
+     fails its check while the layout fails or this section names no issue,
+     until an edit fixes it. GitHub auto-closes only on merge into the
+     DEFAULT branch. -->
 
 Fixes #
 
