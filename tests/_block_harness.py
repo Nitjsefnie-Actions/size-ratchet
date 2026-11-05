@@ -82,11 +82,11 @@ def eval_expression(text, github, contexts=None):
             return token[1:-1]
         if token == 'format':
             assert take() == '('
-            template = primary()
+            template = disjunction()
             arguments = []
             while peek() == ',':
                 take()
-                arguments.append(primary())
+                arguments.append(disjunction())
             assert take() == ')'
             for index, value in enumerate(arguments):
                 template = template.replace('{%d}' % index, str(value))
