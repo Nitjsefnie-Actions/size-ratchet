@@ -40,8 +40,8 @@
     2863
   ],
   ".github/workflows/tests.yml": [
-    9968,
-    16366
+    9793,
+    16226
   ],
   "run.py": [
     675,
@@ -74,9 +74,5 @@
   "tests/run.sh": [
     18,
     79
-  ],
-  "tests/test_action.py": [
-    427,
-    2711
   ]
 }

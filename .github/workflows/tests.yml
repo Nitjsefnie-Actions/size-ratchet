@@ -370,10 +370,11 @@ jobs:
     # The README install block as written, with this repository pinned to
     # its own checkout. The steps' `if` is the block's: on any other event
     # this workflow runs on the job completes green without measuring.
-    # The default `with:` values are the block's, so `require-tight` is on
-    # and scoped: a pull request that shrinks a recorded file lowers its
-    # entry in the same pull request, and the default branch holds no job
-    # that commits records.
+    # The `with:` values are the block's: a pull request is never asked to
+    # lower a record, and on a main push the action commits the tightened
+    # records with the main-push environment's deploy key, the one secret
+    # the job's environment binds only on that push.
+    environment: ${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch && format('{0}-push', github.event.repository.default_branch) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -398,7 +399,8 @@ jobs:
           mode: 'auto'
           base-ref: ${{ github.event.pull_request.base.sha }}
           stale: 'warn'
-          require-tight: 'true'
+          require-tight: 'false'
+          push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
 
   aggregate:
     # Like claudit's aggregate: always report, including after a failed or

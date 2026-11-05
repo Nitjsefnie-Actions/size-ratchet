@@ -40,10 +40,10 @@ inputs:
     default: ''
   mode:
     description: >-
-      auto checks pull requests and verifies a push to the default branch
-      (the records must already be tight, or under require-tight false each
-      loose entry is a notice); check or tighten forces one.
-      Other events fail closed.
+      auto checks pull requests and, on a push to the default branch,
+      commits what tighten writes when push-key is set, or else verifies
+      the records are tight (under require-tight false each loose entry is
+      a warning); check or tighten forces one. Other events fail closed.
     required: false
     default: 'auto'
   base-ref:
@@ -58,12 +58,20 @@ inputs:
     default: 'warn'
   require-tight:
     description: >-
-      true (default) fails a check whose touched entries differ from what
-      tighten would write over the head tree; entries the pull request
-      leaves untouched stay a stale notice. false fails neither, and the
-      default-branch run reports each loose entry as a notice.
+      true fails a check whose touched entries differ from what tighten
+      would write over the head tree; entries the pull request leaves
+      untouched stay a stale notice. false (default) fails neither, and a
+      default-branch run with no push-key warns on each loose entry.
     required: false
-    default: 'true'
+    default: 'false'
+  push-key:
+    description: >-
+      SSH write deploy key that pushes the tightened records to the default
+      branch. Pass the environment secret MASTER_PUSH_DEPLOY_KEY of the
+      <default branch>-push environment, never a repository secret. Empty
+      pushes nothing.
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -71,6 +79,7 @@ runs:
       with:
         python-version: '3.15.1'
     - name: Measure and apply the ratchet
+      id: measure
       shell: bash
       # Inputs are data: none becomes shell program text. -I keeps consumer
       # modules and PYTHONPATH out of Python's import search path. The
@@ -88,6 +97,17 @@ runs:
         SIZE_RATCHET_STALE: ${{ inputs.stale }}
         SIZE_RATCHET_REQUIRE_TIGHT: ${{ inputs.require-tight }}
         SIZE_RATCHET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        # Whether a key was passed, never the key: it exists only below.
+        SIZE_RATCHET_PUSH_KEY_SET: ${{ inputs.push-key != '' }}
       run: |
         python3 -I "$GITHUB_ACTION_PATH/run.py" --validate-only
         python3 -I "$GITHUB_ACTION_PATH/run.py"
+    - name: Push the tightened records
+      # Only a default-branch push run with a key stages records to push.
+      if: steps.measure.outputs.push == 'true'
+      shell: bash
+      env:
+        SIZE_RATCHET_PUSH_KEY: ${{ inputs.push-key }}
+        SIZE_RATCHET_RECORDS: ${{ inputs.records }}
+        SIZE_RATCHET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: python3 -I "$GITHUB_ACTION_PATH/run.py" --push

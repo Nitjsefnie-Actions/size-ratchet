@@ -11,6 +11,7 @@ Exit statuses: 0 pass, 1 violation, 2 configuration or environment failure.
 from __future__ import annotations
 
 import os
+import posixpath
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from pathlib import Path
 ACTION_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ACTION_ROOT / 'scripts' / 'ci'))
 import config
+import deliver
 import records
 import size_baseline as policy
 
@@ -63,16 +65,21 @@ def main() -> int:
         # caller's, and a manual run has none, so auto's dispatch waits.
         requested = config.choice('mode', env('MODE', 'auto'), config.MODES)
         stale = config.choice('stale', env('STALE', 'warn'), config.STALE)
-        require_tight = config.require_tight_input(env('REQUIRE_TIGHT', 'true'))
+        require_tight = config.require_tight_input(env('REQUIRE_TIGHT', 'false'))
         records_path = env('RECORDS', '.github/size-baseline.json')
         records.validate_path(root, records_path)
+        # One spelling for git: update-index refuses './x' where HEAD:./x reads.
+        records_path = posixpath.normpath(records_path)
         policy_out = build_policy()
         if sys.argv[1:] == ['--validate-only']:
             return 0
+        if sys.argv[1:] == ['--push']:
+            return deliver.push(root, records_path, env('DEFAULT_BRANCH', ''))
         mode = resolve_mode(requested)
         base = env('BASE_REF', '') if mode == 'check' else ''
         return policy.run(root, records_path, env('MEMBER', ''), mode, base,
-                          policy_out, stale, require_tight)
+                          policy_out, stale, require_tight,
+                          env('PUSH_KEY_SET', 'false') == 'true')
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'size-ratchet failed: {error}', file=sys.stderr)
         return 2

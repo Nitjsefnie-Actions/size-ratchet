@@ -39,6 +39,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   size-baseline:
+    environment: ${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch && format('{0}-push', github.event.repository.default_branch) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -60,7 +61,8 @@ jobs:
           mode: 'auto'
           base-ref: ${{ github.event.pull_request.base.sha }}
           stale: 'warn'
-          require-tight: 'true'
+          require-tight: 'false'
+          push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
 ```
 
 The `with:` block shows **every input with its default**. Omit it and a
