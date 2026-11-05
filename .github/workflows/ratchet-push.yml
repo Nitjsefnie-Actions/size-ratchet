@@ -2,9 +2,10 @@ name: ratchet push
 
 # The data-only push half of the coverage-floor ratchet. The measuring job
 # stays keyless: tests gates the coverage floor and stages data only when
-# the floor moves. The size and comment-share records move in the pull
-# requests that change the files (each install block's own check), so no
-# arm for either remains here. The push lives HERE, a top-level workflow
+# the floor moves. The size records are committed by the size-baseline
+# job's own action and the comment-share records move in the pull
+# requests that change the files, so no arm for either remains here.
+# The push lives HERE, a top-level workflow
 # where environment: main-push resolves, keyed on the gate run's completion.
 #
 # tests.yml stages ci-thresholds-ratchet from its measured cell on a main
