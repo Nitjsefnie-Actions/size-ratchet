@@ -134,14 +134,13 @@ comment share workflow is the comment-ratchet README install block, which
 runs only on pull requests and fails one whose records differ from what
 tighten would write over the paths it changed.
 
-The size records are different too: they move in pull requests, never by
-delivery. The size-baseline job runs the README install block as written,
-so `require-tight` is on and scoped — a pull request that shrinks,
-deletes or graduates a recorded file lowers or drops that entry in the
-same pull request, and the size records never ride a push workflow. The
-default-branch run verifies the records are already tight and reports
-every entry that is not. Growth is answered by relocating code into a new
-file or shrinking the file, never by raising the record. The coverage
+The size records are committed by the size-baseline job itself. It runs
+the README install block as written, so a pull request that shrinks,
+deletes or graduates a recorded file need not touch the records, and on
+a main push the action commits what tighten writes with the `main-push`
+environment's `MASTER_PUSH_DEPLOY_KEY`. Without that key the main run
+warns on every loose entry instead. Growth is answered by relocating
+code into a new file or shrinking the file, never by raising the record. The coverage
 floor is the opposite: it only rises, and never on a dip — a measurement
 must clear the recorded one by more than the hysteresis before the floor
 moves at all.
