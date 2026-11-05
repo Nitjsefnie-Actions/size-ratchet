@@ -43,7 +43,9 @@ inputs:
       auto checks pull requests and, on a push to the default branch,
       commits what tighten writes when push-key is set, or else verifies
       the records are tight (under require-tight false each loose entry is
-      a warning); check or tighten forces one. Other events fail closed.
+      a warning; in a run from any workflow but size baseline, a notice
+      whatever require-tight says); check or tighten forces one. Other
+      events fail closed.
     required: false
     default: 'auto'
   base-ref:
@@ -61,7 +63,8 @@ inputs:
       true fails a check whose touched entries differ from what tighten
       would write over the head tree; entries the pull request leaves
       untouched stay a stale notice. false (default) fails neither, and a
-      default-branch run with no push-key warns on each loose entry.
+      default-branch run with no push-key warns on each loose entry. A
+      called run with no push-key never fails on a loose entry.
     required: false
     default: 'false'
   push-key:
@@ -99,6 +102,9 @@ runs:
         SIZE_RATCHET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         # Whether a key was passed, never the key: it exists only below.
         SIZE_RATCHET_PUSH_KEY_SET: ${{ inputs.push-key != '' }}
+        # A run from any workflow but the install block's own, the test its
+        # concurrency group uses: that block's push run commits the records.
+        SIZE_RATCHET_CALLED: ${{ github.workflow != 'size baseline' }}
       run: |
         python3 -I "$GITHUB_ACTION_PATH/run.py" --validate-only
         python3 -I "$GITHUB_ACTION_PATH/run.py"

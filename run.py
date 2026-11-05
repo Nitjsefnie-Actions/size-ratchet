@@ -79,7 +79,8 @@ def main() -> int:
         base = env('BASE_REF', '') if mode == 'check' else ''
         return policy.run(root, records_path, env('MEMBER', ''), mode, base,
                           policy_out, stale, require_tight,
-                          env('PUSH_KEY_SET', 'false') == 'true')
+                          env('PUSH_KEY_SET', 'false') == 'true',
+                          env('CALLED', 'false') == 'true')
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'size-ratchet failed: {error}', file=sys.stderr)
         return 2
