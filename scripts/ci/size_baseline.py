@@ -218,7 +218,7 @@ def tightened(baseline, sizes, policy):
     return updated
 
 
-def _diff_report(required, actual):
+def diff_report(required, actual):
     lines = []
     for path in sorted(set(required) - set(actual)):
         lines.append(f'+ {path}: record {required[path]}')
@@ -255,7 +255,7 @@ def _tighten(root, records_path, member, entries, policy, head_map):
     sizes = measure(root, entries, policy, recorded, records_path)
     updated = tightened(head_map, sizes, policy)
     if updated is None:
-        print('size-ratchet: nothing to tighten; the records file is unchanged')
+        print('size-ratchet: nothing to tighten; the per-file records are unchanged')
         return 0
     if records.write_map(root, records_path, member, updated):
         seeded = len(set(updated) - set(recorded))
@@ -360,9 +360,9 @@ _MISSING = object()
 
 
 def _diff_report_subset(required, actual, paths):
-    """_diff_report restricted to ``paths``."""
+    """diff_report restricted to ``paths``."""
     keep = {f'{path}: ' for path in paths}
-    return [line for line in _diff_report(required, actual)
+    return [line for line in diff_report(required, actual)
             if line[2:].startswith(tuple(keep))]
 
 
@@ -383,12 +383,12 @@ def _verify(root, records_path, member, entries, policy, head_map,
     if push_key_set:
         return _stage(root, records_path, member, head_map, expected)
     if expected is not None and called:
-        for line in _diff_report(expected, head_map):
+        for line in diff_report(expected, head_map):
             print(f'::notice::loose record: {line} (a called run has no '
                   "push-key; the block's standalone push run commits it)")
         return 0
     if expected is not None and not require_tight:
-        for line in _diff_report(expected, head_map):
+        for line in diff_report(expected, head_map):
             print(f'::warning::loose record: {line} (push-key is unset, '
                   'so no run commits it)')
         print('size-ratchet: require-tight is false, so the loose records '
@@ -398,7 +398,7 @@ def _verify(root, records_path, member, entries, policy, head_map,
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         print('  the records are loose; tighten over this tree writes:',
               file=sys.stderr)
-        for line in _diff_report(expected, head_map):
+        for line in diff_report(expected, head_map):
             print(f'  {line}', file=sys.stderr)
         print('push-key is unset, so no run commits them: set it, or '
               'lower or drop each named entry in a pull request',
@@ -416,7 +416,7 @@ def _stage(root, records_path, member, head_map, expected):
         return 0
     deliver.stage(root, records_path, member, expected)
     print('size-ratchet: staged the tightened records for the push:')
-    for line in _diff_report(expected, head_map):
+    for line in diff_report(expected, head_map):
         print(f'  {line}')
     return 0
 
@@ -442,7 +442,7 @@ def _check_seed(head_map, sizes, policy):
         print('  the base revision has no records, so this head must carry '
               'the exact seed tighten writes; differing entries:',
               file=sys.stderr)
-        for line in _diff_report(expected, head_map):
+        for line in diff_report(expected, head_map):
             print(f'  {line}', file=sys.stderr)
         print(SEED_REMEDY, file=sys.stderr)
         return 1
