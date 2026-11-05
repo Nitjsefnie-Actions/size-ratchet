@@ -84,7 +84,8 @@ def test_a_called_push_without_the_key_passes_on_loose_records(
 def test_the_block_s_name_is_the_one_run_the_action_treats_as_standalone():
     # The concurrency group and the action read the same name test.
     spec = yaml.safe_load((ACTION_ROOT / 'action.yml').read_text())
-    called = spec['runs']['steps'][1]['env']['SIZE_RATCHET_CALLED']
+    called = [step for step in spec['runs']['steps'] if step.get('id') ==
+              'measure'][0]['env']['SIZE_RATCHET_CALLED']
     assert render(called, {'workflow': install_block()['name']}, {}) == 'false'
     assert render(called, {'workflow': 'ci-gate'}, {}) == 'true'
 
