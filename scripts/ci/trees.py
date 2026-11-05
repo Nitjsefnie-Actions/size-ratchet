@@ -66,7 +66,8 @@ def has_feature_commit(root, base_ref):
     return any(FEATURE_SUBJECT.match(subject) for subject in subjects)
 
 
-def run(root, records_path, folders, mode, base_ref, policy, require_tight):
+def run(root, records_path, folders, mode, base_ref, policy, require_tight,
+        push_key_set=False, called=False, staged=None):
     """The tree half of the gate: 0 or 1."""
     sums = totals(root, 'HEAD', folders, policy, records_path)
     if mode == 'tighten':
@@ -74,7 +75,8 @@ def run(root, records_path, folders, mode, base_ref, policy, require_tight):
         return _tighten(root, records_path, recorded, sums)
     head = records.read_map_at(root, 'HEAD', records_path, TREES_MEMBER)
     if mode == 'verify':
-        return _verify(head, sums, require_tight)
+        return _verify(head, sums, require_tight, push_key_set, called,
+                       staged)
     base = records.read_map_at(root, base_ref, records_path, TREES_MEMBER) or {}
     base_sums = (totals(root, base_ref, folders, policy, records_path)
                  if require_tight else {})
@@ -139,18 +141,32 @@ def _report(failures, sums):
     return 0
 
 
-def _verify(head, sums, require_tight):
-    """Over budget fails; any other drift from tighten is loose."""
+def _verify(head, sums, require_tight, push_key_set, called, staged):
+    """Over budget fails in every arm; any other drift from tighten is
+    loose, judged as size_baseline._verify judges a loose record."""
     head = head or {}
     over = [f'{folder}: {total} lines above its record of {head[folder]}'
             for folder, total in sums.items()
             if folder in head and total > head[folder]]
-    loose = size_baseline.diff_report(tightened(head, sums), head)
-    if loose and not require_tight:
+    expected = tightened(head, sums)
+    loose = size_baseline.diff_report(expected, head)
+    if loose and push_key_set:
+        staged[TREES_MEMBER] = expected
+        print('size-ratchet: staged the tightened tree budgets for the push:')
         for line in loose:
-            print(f'::notice::loose tree budget: {line}')
+            print(f'  {line}')
+    elif loose and called:
+        for line in loose:
+            print(f'::notice::loose tree budget: {line} (a called run has no '
+                  "push-key; the block's standalone push run commits it)")
+    elif loose and not require_tight:
+        for line in loose:
+            print(f'::warning::loose tree budget: {line} (push-key is unset, '
+                  'so no run commits it)')
     elif loose:
         over.append('the tree budgets are loose; tighten over this tree '
                     'writes:')
         over.extend('  ' + line for line in loose)
+        over.append('push-key is unset, so no run commits them: set it, or '
+                    'lower or drop each named budget in a pull request')
     return _report(over, sums)

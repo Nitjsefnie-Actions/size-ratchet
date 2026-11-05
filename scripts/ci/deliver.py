@@ -53,12 +53,18 @@ def check_head(root):
                          'records describe the pushed tree')
 
 
-def stage(root, records_path, member, updated):
-    """Stage HEAD's records file with the member spliced for the push."""
-    shown = _git(root, 'cat-file', 'blob', '--', f'HEAD:{records_path}')
-    _out(shown, 'reading the records file')
-    document = records.splice(shown.stdout.decode('utf-8'), member,
-                              records.serialize_map(updated))
+def stage(root, records_path, maps):
+    """Stage HEAD's records file with each {member: map} spliced for the
+    push, or a created document when HEAD has none."""
+    document = None
+    if records.exists_at(root, 'HEAD', records_path):
+        shown = _git(root, 'cat-file', 'blob', '--', f'HEAD:{records_path}')
+        _out(shown, 'reading the records file')
+        document = shown.stdout.decode('utf-8')
+    for member, updated in maps.items():
+        document = (records.document_text(member, updated) if document is None
+                    else records.splice(document, member,
+                                        records.serialize_map(updated)))
     path = Path(_required('RUNNER_TEMP')) / STAGED
     path.write_bytes(document.encode('utf-8'))
     with open(_required('GITHUB_OUTPUT'), 'a', encoding='utf-8') as out:
