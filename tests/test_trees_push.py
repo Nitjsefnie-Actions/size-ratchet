@@ -89,11 +89,23 @@ def test_a_stale_staged_file_never_reaches_the_push(tmp_path):
     assert landed(remote, sha) == BOTH % (520, 15)
 
 
-def called(repo, **inputs):
+def called(repo, secrets=None, extra_env=None, **inputs):
     return run_block_as_called(
         repo, 'push', 'refs/heads/main',
         {'repository': {'default_branch': 'main'}},
+        environment_secrets=secrets, extra_env=extra_env,
         inputs={'tree-budgets': 'tests/', **inputs})[1]
+
+
+def test_a_called_keyed_run_commits_the_loose_trees(tmp_path):
+    # The caller's job binds main-push, whose secret reaches push-key.
+    repo, sha, remote = pushed_repo(tmp_path, BOTH % (520, 20))
+    done = called(repo, {'main-push': {'MASTER_PUSH_DEPLOY_KEY': 'k'}},
+                  {'SIZE_RATCHET_PUSH_REMOTE': str(remote)})
+    assert done[MEASURE].returncode == 0, done[MEASURE].stderr
+    assert '::notice::loose tree' not in done[MEASURE].stdout
+    assert done[PUSH].returncode == 0, done[PUSH].stderr
+    assert landed(remote, sha) == BOTH % (520, 15)
 
 
 def keyless(repo, tight):
