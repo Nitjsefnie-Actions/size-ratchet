@@ -32,6 +32,7 @@ def test_every_input_has_a_default():
     expected = {
         'ceilings', 'overrides', 'exclude', 'unclassified', 'records',
         'member', 'mode', 'base-ref', 'stale', 'require-tight', 'push-key',
+        'tree-budgets',
     }
     assert set(inputs) == expected
     for name, spec in inputs.items():

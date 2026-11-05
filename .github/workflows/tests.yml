@@ -401,6 +401,7 @@ jobs:
           stale: 'warn'
           require-tight: 'false'
           push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
+          tree-budgets: ''
 
   aggregate:
     # Like claudit's aggregate: always report, including after a failed or
