@@ -79,11 +79,12 @@ def test_a_tag_push_starts_no_run():
 
 def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
     # Item 3: no other run of the block cancels a called run.
-    standalone_pr = {'workflow': 'size baseline', 'ref': 'refs/pull/5/merge'}
-    called = {'workflow': 'ci-gate', 'ref': 'refs/pull/5/merge',
-              'run_id': '3699691921'}
-    later_called = {'workflow': 'ci-gate', 'ref': 'refs/pull/5/merge',
-                    'run_id': '3699698649'}
+    standalone_pr = {'workflow': 'size baseline', 'event_name': 'pull_request',
+                     'ref': 'refs/pull/5/merge'}
+    called = {'workflow': 'ci-gate', 'event_name': 'pull_request',
+              'ref': 'refs/pull/5/merge', 'run_id': '3699691921'}
+    later_called = {'workflow': 'ci-gate', 'event_name': 'pull_request',
+                    'ref': 'refs/pull/5/merge', 'run_id': '3699698649'}
     group = install_block()['concurrency']['group']
     assert eval_expression(group, standalone_pr) == \
         'size-baseline-refs/pull/5/merge'
@@ -93,7 +94,8 @@ def test_the_concurrency_group_splits_a_called_run_from_the_standalone_run():
     # GitHub string equality ignores case: a caller named Size Baseline
     # takes the standalone group too, which is the caveat the README names.
     assert eval_expression(
-        group, {'workflow': 'Size Baseline', 'ref': 'refs/pull/5/merge'}) == \
+        group, {'workflow': 'Size Baseline', 'event_name': 'pull_request',
+                'ref': 'refs/pull/5/merge'}) == \
         'size-baseline-refs/pull/5/merge'
     assert install_block()['concurrency']['cancel-in-progress'] is True
 
@@ -114,6 +116,12 @@ def test_a_push_run_cancels_no_other_commit_s_run():
     assert records == 'size-baseline-refs/heads/main-b2'
     # One commit pushed to both filtered branches is two runs.
     assert push('refs/heads/master', 'a1') == 'size-baseline-refs/heads/master-a1'
+    # A called run on a caller's push keeps the caller's group, never the
+    # standalone push run's.
+    assert eval_expression(group, {'workflow': 'ci-gate', 'event_name': 'push',
+                                   'ref': 'refs/heads/main', 'sha': 'a1',
+                                   'run_id': '3699691921'}) == \
+        'size-baseline-called-3699691921'
 
     def pull(sha):
         return eval_expression(group, {'workflow': 'size baseline',
