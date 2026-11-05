@@ -3,7 +3,8 @@
 Gate the line count of a repository's files with a per-file ratchet that
 only tightens. Ceilings have per-type defaults, are configurable through
 `with:`, and take per-folder overrides in the same `with:` block; records
-live in one committed JSON file and are never raised.
+live in one committed JSON file and are never raised. Opt-in tree
+budgets also cap a folder's total line count.
 
 The measurement and ratchet are ported from
 [Nitjsefnie/claudit](https://github.com/Nitjsefnie/claudit)'s
@@ -200,10 +201,12 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
 | `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
 | `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
+| `tree-budgets` | `''` | Multiline `<folder>/` lines, each budgeting the total line count under that folder (see Tree budgets). Empty budgets no tree. |
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
 malformed line, an unknown type, a folder without a trailing `/`, a
-duplicate folder, or a ceiling that is not a positive integer. Exit 0
+duplicate folder, or a ceiling that is not a positive integer. A non-empty
+`tree-budgets` beside `member: trees` fails the same way. Exit 0
 passes, 1 is a violation, 2 is a configuration or environment failure.
 Inputs reach the action through environment variables and are never
 interpolated into shell programs.
@@ -249,9 +252,9 @@ gate's own data, not source.
 
 `.github/size-baseline.json` holds `{"schema_version": 1, "baseline":
 {"<path>": <lines>}}`. With `member` set, the baseline map is instead the
-value of that top-level key, and every other key of the document is
-preserved byte-for-byte on write. All comparisons use only the baseline
-map. "No records" means the file is absent or the key is absent; an empty
+value of that top-level key, and every other key of the document but
+the tree budgets' `trees` is preserved byte-for-byte on write. All per-file comparisons use only the
+baseline map. "No records" means the file is absent or the key is absent; an empty
 map is records. Ceilings live only in `with:`.
 
 - A file **with** a record may not grow above its record, whether or not it
@@ -314,6 +317,42 @@ Three consequences for an adopting PR:
   this reason.
 - An adopter that already keeps another size baseline seeds under a new
   `member` or the default file and deletes the old one in the same PR.
+
+## Tree budgets
+
+Every file can stay under its ceiling while a folder grows without limit.
+Each `<folder>/` line in `tree-budgets` budgets that folder's total: the
+sum of line counts, by the measurement rule above, of every regular,
+non-binary file in `git ls-tree -r` under that repository-relative prefix,
+typed or not, minus `exclude`d paths and the records file. A file under
+two listed folders counts toward both. Totals live under the records
+file's top-level `trees` key, `{"tests/": 139242}`, whatever `member`
+says; `member` still selects only the per-file map. With `tree-budgets`
+empty, the default, nothing reads, judges or writes `trees`.
+
+- **Tighten** seeds a missing budget at the folder's total, lowers one
+  above it, drops one for a folder no longer listed, and never raises one.
+  It rewrites only the `trees` value and the member's value.
+- **Check** judges the head against the base's budgets. When the base has
+  no budget for a folder, the head must carry exactly the seed tighten
+  writes, and no feature commit is needed. Otherwise the run fails, naming
+  the folder, its total and the budget, when the head's total exceeds the
+  head's budget, when the head drops the budget or lowers it below the
+  total, or when the head's budget is above the base's and no commit
+  subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?:` — only a
+  feature change may raise a budget; any other change trims its own lines
+  under the folder. Reading that history needs a full clone: a shallow or
+  unreadable history fails with exit 2, and is read only when a budget
+  rises. Under `require-tight: 'true'`, a folder whose total or budget
+  moved between base and head must record exactly the head's total.
+- **The default-branch run** fails when a total exceeds its budget, under
+  either `require-tight`. A budget above its total, a missing budget, or a
+  budget for an unlisted folder is loose: a failure under
+  `require-tight: 'true'`, a notice under `'false'`. A records file
+  holding only `trees` is records.
+
+With `tree-budgets` set, the per-file gate and the tree budgets each
+report their verdict, and the run fails when either fails.
 
 ## Contributing and security
 
