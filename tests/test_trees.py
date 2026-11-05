@@ -57,6 +57,9 @@ def validate_only(repo, **inputs):
     ('/tests/', "input tree-budgets line 1 ('/tests/'): folder '/tests/' is "
                 'not a repository-relative path prefix'),
     ('a/../b/', 'is not a repository-relative path prefix'),
+    ('./tests/', "input tree-budgets line 1 ('./tests/'): folder './tests/' "
+                 'is not a repository-relative path prefix'),
+    ('tests//', 'is not a repository-relative path prefix'),
     ('test*/', 'carries a wildcard'),
 ])
 def test_a_bad_tree_budgets_line_is_refused_up_front(tmp_path, value, match):

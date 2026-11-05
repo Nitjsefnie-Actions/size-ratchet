@@ -91,7 +91,7 @@ def _folder(input_name, line_no, raw, folder, seen):
     in_error = f'input {input_name} line {line_no} ({raw!r})'
     if not folder.endswith('/'):
         raise ValueError(f'{in_error}: folder {folder!r} has no trailing /')
-    if folder.startswith('/') or '..' in folder.split('/'):
+    if {'', '.', '..'} & set(folder.split('/')[:-1]):
         raise ValueError(f'{in_error}: folder {folder!r} is not a '
                          'repository-relative path prefix')
     if any(char in folder for char in '*?['):

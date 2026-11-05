@@ -406,6 +406,9 @@ def test_bad_ceilings_exit_two_naming_the_input(tmp_path, bad, match):
     ('tests: 700', 'has no trailing /'),
     ('tests/: 700\ntests/: 300', 'duplicate folder'),
     ('tests*/: 700', 'wildcard'),
+    ('./tests/: 700', "input overrides line 1 ('./tests/: 700'): folder "
+                      "'./tests/' is not a repository-relative path prefix"),
+    ('tests//: 700', 'is not a repository-relative path prefix'),
 ])
 def test_bad_overrides_exit_two_naming_the_input(tmp_path, bad, match):
     repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
