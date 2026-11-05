@@ -129,10 +129,11 @@ JSON drops the run with a summary; a push rejected while main stood still
 is an error. A rejection after main moved drops the stale run so the next
 gate can measure again.
 
-The comment-share records move in pull requests, never by delivery: the
-comment share workflow is the comment-ratchet README install block, which
-runs only on pull requests and fails one whose records differ from what
-tighten would write over the paths it changed.
+The comment-share records are committed by the comment-share job itself.
+It runs the comment-ratchet README install block, so a pull request may
+leave a changed file's record at its base pair, and on a main push the
+action commits what tighten writes with the `main-push` environment's
+`MASTER_PUSH_DEPLOY_KEY`.
 
 The size records are committed by the size-baseline job itself. It runs
 the README install block as written, so a pull request that shrinks,
