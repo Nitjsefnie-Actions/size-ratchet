@@ -116,7 +116,8 @@ a superseded one. A standalone push run's group is its branch and
 commit, so the run the action's own records commit starts cancels
 neither the run that pushed it nor an earlier commit's run, running or
 pending; an older push run whose records push is then refused passes
-(see Records on the default branch). A called run takes the calling run's group
+once a fresh read shows the branch moved (see Records on the default
+branch). A called run takes the calling run's group
 (`github.run_id` is the caller's run id), so no other run of the block,
 in either arm, shares it unless one caller run invokes the block more
 than once — those invocations share a group and can cancel or queue
