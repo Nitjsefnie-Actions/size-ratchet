@@ -132,10 +132,17 @@ def test_a_duplicate_type_is_an_error():
         config.parse_ceilings('source: 800\nsource: 900\n')
 
 
-@pytest.mark.parametrize('folder', ['/abs/', '../up/', 'a/../b/'])
-def test_a_folder_outside_the_repository_is_an_error(folder):
+@pytest.mark.parametrize('folder', ['/abs/', '../up/', 'a/../b/', './tests/',
+                                    'tests//', 'tests/./', './', '//'])
+def test_a_folder_no_repository_path_can_start_with_is_an_error(folder):
     with pytest.raises(ValueError, match='input overrides line 1 .*repository-relative'):
         config.parse_overrides(f'{folder}: 700\n')
+
+
+@pytest.mark.parametrize('folder', ['.github/', '..x/', 'a./', '.../', 'a/.b/'])
+def test_a_dotted_folder_name_is_still_a_folder(folder):
+    assert config.parse_overrides(f'{folder}: 700\n') == {folder: 700}
+    assert config.parse_tree_budgets(folder, '') == [folder]
 
 
 @pytest.mark.parametrize('value', ['+7', '1_000', ' 7 x', '0x10', '７'])
