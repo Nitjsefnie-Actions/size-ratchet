@@ -77,11 +77,11 @@ def test_no_head_entry_passes_while_the_base_total_holds(
 def test_no_head_entry_fails_past_the_base_total(tmp_path, make_base):
     repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
     base = make_base(repo)
-    add_and_commit(repo, GROW, 'm\n' * 5, 'feat: grow the tests')
+    add_and_commit(repo, GROW, 'm\n', 'feat: grow the tests')
     done = check(repo, base)
     assert done.returncode == 1
-    assert 'tests/: 20 lines above the base total of 15' in done.stderr
-    put(repo, {'tests/': 20}, {})
+    assert 'tests/: 16 lines above the base total of 15' in done.stderr
+    put(repo, {'tests/': 16}, {})
     done = check(repo, base)
     assert done.returncode == 0, done.stderr
 

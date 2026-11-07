@@ -27,6 +27,15 @@ def test_a_held_or_shrunk_file_passes_without_records(tmp_path, big, small,
     assert "within the size policy and the base tree's counts" in done.stdout
 
 
+def test_nothing_over_its_ceiling_passes_without_records(tmp_path):
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
+    base = head(repo)
+    add_and_commit(repo, 'src/a.py', 'x\n' * 500, 'grow to the ceiling')
+    done = run_gate(repo, 'check', base_ref=base)
+    assert done.returncode == 0, done.stderr
+    assert "within the size policy and the base tree's counts" in done.stdout
+
+
 def test_an_over_ceiling_file_grown_without_records_fails(tmp_path):
     repo = make_repo(tmp_path, TREE)
     base = head(repo)
