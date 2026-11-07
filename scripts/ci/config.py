@@ -5,8 +5,8 @@ Every input is judged here, before anything is measured, so the
 validate-only pass the composite step runs first refuses a bad value up
 front. A refusal is a ValueError naming the input (and the line, for the
 multiline inputs); run.py turns it into exit 2. A value that would parse
-but could never take effect -- a duplicate type, a folder no
-repository-relative path can start with, a ceiling spelled `+7` or
+but could never take effect -- a duplicate type, a folder or exclude
+entry no repository-relative path can match, a ceiling spelled `+7` or
 `1_000` -- is refused too, because silently inert configuration reads as
 a gate that is on.
 """
@@ -91,9 +91,7 @@ def _folder(input_name, line_no, raw, folder, seen):
     in_error = f'input {input_name} line {line_no} ({raw!r})'
     if not folder.endswith('/'):
         raise ValueError(f'{in_error}: folder {folder!r} has no trailing /')
-    if {'', '.', '..'} & set(folder.split('/')[:-1]):
-        raise ValueError(f'{in_error}: folder {folder!r} is not a '
-                         'repository-relative path prefix')
+    _relative(in_error, folder)
     if any(char in folder for char in '*?['):
         raise ValueError(f'{in_error}: folder {folder!r} carries a '
                          'wildcard; a folder is a literal path prefix')
@@ -114,10 +112,23 @@ def parse_tree_budgets(text, member):
     return folders
 
 
+def _relative(in_error, entry):
+    folder = entry.endswith('/')
+    segments = entry.split('/')
+    if {'', '.', '..'} & set(segments[:-1] if folder else segments):
+        kind, prefix = ('folder', ' prefix') if folder else ('path', '')
+        raise ValueError(f'{in_error}: {kind} {entry!r} is not a '
+                         f'repository-relative path{prefix}')
+
+
 def parse_exclude(text):
     """Exact paths or ``<folder>/`` prefixes, one per non-blank line."""
-    return [stripped for raw in text.splitlines()
-            if (stripped := raw.strip())]
+    entries = []
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        if entry := raw.strip():
+            _relative(f'input exclude line {line_no} ({raw!r})', entry)
+            entries.append(entry)
+    return entries
 
 
 def check_policy(unclassified):
