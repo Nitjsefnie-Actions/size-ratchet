@@ -174,8 +174,8 @@ excludes a recorded file — or graduates one by shrinking it below its
 ceiling — fails until that entry in the same pull request says what
 tighten would write — lowered, or dropped. A ceiling the pull request
 raises without moving a count stays a stale notice either way. An
-adoption PR that grows or adds no over-ceiling file needs no records
-file (see Seeding).
+adoption PR that grows or adds no over-ceiling file, and grows no listed
+tree folder, needs no records file (see Seeding).
 
 Two pull requests checked against the same base can both merge and leave
 a record above its file's count — each lowered the record to its own
@@ -326,7 +326,7 @@ over-ceiling file must be the file's exact head count.
 So adopting the action, or a release, is the workflow edit alone. With
 `tree-budgets` set, the first default-branch run with `push-key` writes
 the records file, both maps (see Tree budgets); with it empty, no run
-writes per-file records, so every pull request stays judged by the base
+commits per-file records, so every pull request stays judged by the base
 tree's counts until a records file tighten writes is committed. A pull
 request that grows an over-ceiling file, or adds one, before the base
 has records commits the exact seed instead.
