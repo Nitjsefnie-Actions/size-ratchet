@@ -174,7 +174,8 @@ excludes a recorded file — or graduates one by shrinking it below its
 ceiling — fails until that entry in the same pull request says what
 tighten would write — lowered, or dropped. A ceiling the pull request
 raises without moving a count stays a stale notice either way. An
-adoption PR needs no records file (see Seeding).
+adoption PR that grows or adds no over-ceiling file needs no records
+file (see Seeding).
 
 Two pull requests checked against the same base can both merge and leave
 a record above its file's count — each lowered the record to its own
@@ -278,9 +279,10 @@ map is records. Ceilings live only in `with:`.
 
 **Check** compares the head tree against the baseline read at `base-ref`,
 so a records edit in the head does not loosen the gate. With
-`require-tight` on it measures the base tree as well, so the base's
-counts bind the comparison. Each failure names
-the path, its measured lines, and the record or ceiling it exceeded. A
+`require-tight` on, or when neither revision has records (see Seeding),
+it measures the base tree as well, so the base's counts bind the
+comparison. Each failure names the path, its measured lines, and the
+record, base count or ceiling it exceeded. A
 recorded entry whose file shrank, was deleted, was excluded, or is at or
 below its ceiling is **stale**: `stale: warn` reports it as a notice;
 `stale: fail` fails the run. `require-tight: 'true'` also fails
@@ -321,10 +323,13 @@ Once the base has records, only the base's bind. A base whose records
 map is empty is the same for additions: an entry the head adds for an
 over-ceiling file must be the file's exact head count.
 
-So adopting the action, or a release, is the workflow edit alone: the
-first default-branch run with `push-key` writes the records (see Records
-on the default branch). A pull request that grows an over-ceiling file,
-or adds one, before the base has records commits the exact seed instead.
+So adopting the action, or a release, is the workflow edit alone. With
+`tree-budgets` set, the first default-branch run with `push-key` writes
+the records file, both maps (see Tree budgets); with it empty, no run
+writes per-file records, so every pull request stays judged by the base
+tree's counts until a records file tighten writes is committed. A pull
+request that grows an over-ceiling file, or adds one, before the base
+has records commits the exact seed instead.
 
 Three consequences for an adopting PR:
 
