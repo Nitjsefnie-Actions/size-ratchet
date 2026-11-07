@@ -242,7 +242,8 @@ def test_the_seed_paths_unclassified_check_fails(tmp_path):
     assert run_gate(repo, 'check', base_ref=base).returncode == 0
 
 
-@pytest.mark.parametrize('document', ['{"baseline": {', '{"baseline":'])
+@pytest.mark.parametrize('document', ['{"baseline": {', '{"baseline":',
+                                      '{"trees": {"tests/": 20}} junk'])
 def test_a_truncated_records_file_is_a_configuration_error(tmp_path, document):
     repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
     add_and_commit(repo, RECORDS, document, 'truncate the records file')
