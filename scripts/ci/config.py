@@ -115,7 +115,8 @@ def parse_tree_budgets(text, member):
 def _relative(in_error, entry):
     folder = entry.endswith('/')
     segments = entry.split('/')
-    if {'', '.', '..'} & set(segments[:-1] if folder else segments):
+    named = segments[:-1] if folder else segments
+    if {'', '.', '..', '.git'} & {segment.lower() for segment in named}:
         kind, prefix = ('folder', ' prefix') if folder else ('path', '')
         raise ValueError(f'{in_error}: {kind} {entry!r} is not a '
                          f'repository-relative path{prefix}')
