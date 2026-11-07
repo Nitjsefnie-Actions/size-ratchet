@@ -1,6 +1,7 @@
 """Tests for the input policy: types, ceilings, precedence, validation."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -9,6 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'ci'))
 import config  # noqa: E402
 import size_baseline  # noqa: E402
+
+from tests.helpers import RECORDS_PATH, make_repo, run_gate  # noqa: E402
 
 
 def test_every_named_extension_has_its_type():
@@ -143,6 +146,35 @@ def test_a_folder_no_repository_path_can_start_with_is_an_error(folder):
 def test_a_dotted_folder_name_is_still_a_folder(folder):
     assert config.parse_overrides(f'{folder}: 700\n') == {folder: 700}
     assert config.parse_tree_budgets(folder, '') == [folder]
+
+
+@pytest.mark.parametrize('entry,kind', [
+    ('./tests/', 'folder'), ('tests//', 'folder'), ('/tests/', 'folder'),
+    ('a/../b/', 'folder'), ('tests/./', 'folder'), ('/', 'folder'),
+    ('./a.py', 'path'), ('src//a.py', 'path'), ('/a.py', 'path'),
+    ('src/./a.py', 'path'), ('src/..', 'path'), ('.', 'path'), ('..', 'path'),
+])
+def test_an_exclude_entry_no_repository_path_can_match_is_an_error(entry, kind):
+    with pytest.raises(ValueError, match=(
+            f"^input exclude line 2 \\('  {re.escape(entry)}'\\): {kind} "
+            f"'{re.escape(entry)}' is not a repository-relative path"
+            f"{' prefix' if kind == 'folder' else ''}$")):
+        config.parse_exclude(f'src/ok.py\n  {entry}\n')
+
+
+@pytest.mark.parametrize('entry', ['.github/', '..x/', 'a./', '.../', 'a/.b/',
+                                   '.gitignore', 'src/.hidden.py', 'a/..b.py'])
+def test_a_dotted_exclude_name_is_still_an_entry(entry):
+    assert config.parse_exclude(f'{entry}\n') == [entry]
+
+
+@pytest.mark.parametrize('entry', ['./tests/', 'tests//'])
+def test_tighten_refuses_an_inert_exclude_and_writes_no_records(tmp_path, entry):
+    repo = make_repo(tmp_path, {'tests/a.py': 'x\n' * 600})
+    done = run_gate(repo, 'tighten', exclude=entry)
+    assert done.returncode == 2, done.stderr
+    assert f"input exclude line 1 ('{entry}')" in done.stderr
+    assert not (repo / RECORDS_PATH).exists()
 
 
 @pytest.mark.parametrize('value', ['+7', '1_000', ' 7 x', '0x10', '７'])
