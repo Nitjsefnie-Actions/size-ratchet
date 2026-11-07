@@ -352,7 +352,7 @@ def test_auto_verify_passes_when_tight_and_writes_nothing(tmp_path):
 
 def test_auto_verify_without_records_passes(tmp_path):
     # No records on the default branch: seeding happens in the adoption
-    # PR, and a push-side run has nothing to verify.
+    # PR, and a keyless push-side run has nothing to verify.
     repo = make_repo(tmp_path, {'src/big.py': BIG})
     done = run_gate(repo, 'auto', default_branch='main', extra_env={
         'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'})

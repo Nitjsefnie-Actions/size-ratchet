@@ -376,7 +376,10 @@ def _verify(root, records_path, member, entries, policy, head_map,
         deliver.check_head(root)
     if (head_map is None and push_key_set
             and not records.exists_at(root, 'HEAD', records_path)):
-        staged.update(staged_seed(root, records_path, member, policy))
+        staged[member] = tightened(None, measure(root, entries, policy, (),
+                                                 records_path), policy)
+        print('size-ratchet: no records file on the default branch; staged '
+              'the per-file seed tighten writes')
         return 0
     if head_map is None:
         print('size-ratchet: no records on the default branch; '
@@ -425,16 +428,6 @@ def _stage(member, head_map, expected, staged):
     for line in diff_report(expected, head_map):
         print(f'  {line}')
     return 0
-
-
-def staged_seed(root, records_path, member, policy):
-    """The per-file map tighten writes into an absent records file."""
-    entries = list_tree(root, 'HEAD')
-    seed = tightened(None, measure(root, entries, policy, (), records_path),
-                     policy)
-    print('size-ratchet: no records file on the default branch; staged '
-          'the per-file seed tighten writes')
-    return {member or records.DEFAULT_MEMBER: seed}
 
 
 def _check_seed(root, base_ref, records_path, head_map, sizes, policy):
