@@ -324,13 +324,13 @@ map is empty is the same for additions: an entry the head adds for an
 over-ceiling file must be the file's exact head count.
 
 So adopting the action, or a release, is the workflow edit alone: with
-no records file on the default branch, the first default-branch run
-with `push-key` commits the records file tighten creates, the per-file
-map and, with `tree-budgets` set, the `trees` map beside it (see Tree
-budgets). Until the default branch has a records file, every pull
-request is judged by the base tree's counts. A pull request that grows
-an over-ceiling file, or adds one, before the base has records commits
-the exact seed instead.
+no per-file map on the default branch, the first default-branch run
+with `push-key` commits the per-file seed tighten writes, creating the
+records file when there is none, with the `trees` map beside it when
+`tree-budgets` is set (see Tree budgets). Until that map lands, every
+pull request is judged by the base tree's counts. A pull request that
+grows an over-ceiling file, or adds one, before the base has records
+commits the exact seed instead.
 
 Three consequences for an adopting PR:
 

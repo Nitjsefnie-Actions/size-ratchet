@@ -14,6 +14,8 @@ TREE = {'tests/a.py': 'a\n' * 3, 'tests/notes.md': 'n\n' * 5,
 BOTH = ('{\n  "schema_version": 1,\n  "baseline": {\n    "src/x.py": %d\n'
         '  },\n  "trees": {\n    "tests/": %d\n  }\n}\n')
 TREES_ONLY = '{\n  "trees": {\n    "tests/": %d\n  }\n}\n'
+SPLICED = ('{\n  "baseline": {\n    "src/x.py": 520\n  },\n  "trees": {\n'
+           '    "tests/": %d\n  }\n}\n')
 LOOSE = '~ tests/: required 15, recorded 20'
 
 
@@ -34,15 +36,28 @@ def landed(remote, sha):
     return git(remote, 'show', f'{tip}:{RECORDS}')
 
 
-@pytest.mark.parametrize('shape', [BOTH.replace('%d', '520', 1), TREES_ONLY],
-                         ids=['both', 'trees-only'])
-def test_keyed_loose_trees_alone_are_committed(tmp_path, shape):
-    repo, sha, remote = pushed_repo(tmp_path, shape % 20)
+def test_keyed_loose_trees_alone_are_committed(tmp_path):
+    repo, sha, remote = pushed_repo(tmp_path, BOTH % (520, 20))
     done = deliver(repo, remote, **{'tree-budgets': 'tests/'})
     assert done[MEASURE].returncode == 0, done[MEASURE].stderr
     assert f'  {LOOSE}\n' in done[MEASURE].stdout
     assert done[PUSH].returncode == 0, done[PUSH].stderr
-    assert landed(remote, sha) == shape % 15
+    assert landed(remote, sha) == BOTH % (520, 15)
+
+
+@pytest.mark.parametrize('inputs,trees', [({}, 20),
+                                          ({'tree-budgets': 'tests/'}, 15)],
+                         ids=['per-file-only', 'both'])
+def test_keyed_records_without_the_per_file_map_gain_its_seed(
+        tmp_path, inputs, trees):
+    repo, sha, remote = pushed_repo(tmp_path, TREES_ONLY % 20)
+    done = deliver(repo, remote, **inputs)
+    assert 'staged the per-file seed' in done[MEASURE].stdout
+    assert done[PUSH].returncode == 0, done[PUSH].stderr
+    assert landed(remote, sha) == SPLICED % trees
+    assert run_gate(repo, 'tighten', tree_budgets=inputs.get(
+        'tree-budgets', '')).returncode == 0
+    assert (repo / RECORDS).read_text() == SPLICED % trees
 
 
 def test_keyed_loose_halves_land_in_one_commit(tmp_path):
