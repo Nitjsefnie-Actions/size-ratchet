@@ -86,13 +86,18 @@ def scan_members(text):
     """Return (members, end) for the top-level object of ``text``.
 
     A document that ends mid-value -- a botched conflict resolution or a
-    truncated hand edit -- is a ValueError like any other malformed one.
+    truncated hand edit -- or carries anything but JSON whitespace after its
+    closing brace is a ValueError like any other malformed one.
     """
     try:
-        return _scan_members(text)
+        members, end = _scan_members(text)
     except IndexError:
         raise ValueError('the document ends before its top-level object '
                          'closes') from None
+    if _skip_whitespace(text, end) < len(text):
+        raise ValueError('something other than whitespace comes after the '
+                         'top-level object')
+    return members, end
 
 
 def _scan_members(text):

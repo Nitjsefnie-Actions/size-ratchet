@@ -190,3 +190,31 @@ def test_scan_refuses_malformed_documents():
         records.scan_members('{"a": }')
     with pytest.raises(ValueError):
         records.scan_members('{"a": 1,}')
+
+
+@pytest.mark.parametrize('tail', [' junk', '}', '\n{}', '\f', '\u00a0'])
+def test_scan_refuses_bytes_after_the_top_level_object(tail):
+    with pytest.raises(ValueError, match='after the top-level object'):
+        records.scan_members('{"trees": {"tests/": 20}}' + tail)
+
+
+def test_scan_accepts_json_whitespace_after_the_top_level_object():
+    members, end = records.scan_members('{"a": 1} \t\r\n')
+    assert (members, end) == ([('a', 6, 7)], 8)
+
+
+def test_every_reader_and_the_writer_name_a_file_with_trailing_bytes(tmp_path):
+    from tests.helpers import add_and_commit, make_repo
+    document = '{"schema_version": 1, "baseline": {"a.py": 5}} junk'
+    repo = make_repo(tmp_path, {'a.py': 'x\n'})
+    add_and_commit(repo, 'doc.json', document, 'records')
+    path = repo / 'doc.json'
+    for read, name in [
+            (lambda: records.read_document(path, 'baseline'), path),
+            (lambda: records.read_map_at(repo, 'HEAD', 'doc.json', 'baseline'),
+             'HEAD:doc.json'),
+            (lambda: records.write_map(repo, 'doc.json', 'baseline', {}), path)]:
+        with pytest.raises(ValueError) as raised:
+            read()
+        assert str(raised.value).startswith(f'records file {name}: ')
+    assert path.read_text() == document
