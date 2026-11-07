@@ -244,8 +244,9 @@ def splice(text: str, member: str, value_json: str) -> str:
             return (text[:value_start] + _reindent(value_json, key_indent)
                     + text[value_end:])
     body = _reindent(value_json, 2)
-    head = text[:1]
-    rest = text[1:end - 1]
+    opened = _skip_whitespace(text, 0) + 1
+    head = text[:opened]
+    rest = text[opened:end - 1]
     tail = text[end - 1:]
     if not rest.strip():
         return head + f'\n  "{member}": {body}\n' + tail

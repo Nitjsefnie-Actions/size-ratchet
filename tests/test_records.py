@@ -51,6 +51,18 @@ def test_splice_inserts_beside_existing_members():
                        '\n  "schema_version": 1\n}\n')
 
 
+@pytest.mark.parametrize('lead', ['\n', ' \t\r\n'], ids=['lf', 'mixed'])
+@pytest.mark.parametrize('body,expected', [
+    ('{}', '{\n  "baseline": {}\n}'),
+    ('{\n  "trees": {}\n}\n', '{\n  "baseline": {},\n  "trees": {}\n}\n'),
+], ids=['empty', 'beside'])
+def test_splice_inserts_after_whitespace_before_the_object(lead, body,
+                                                           expected):
+    updated = records.splice(lead + body, 'baseline', '{}')
+    assert updated == lead + expected
+    assert records.parse_document(updated.encode(), 'x', 'baseline') == {}
+
+
 def test_serialize_is_sorted_and_indented():
     assert records.serialize_map({'b.py': 2, 'a.py': 1}) == \
         '{\n  "a.py": 1,\n  "b.py": 2\n}'
