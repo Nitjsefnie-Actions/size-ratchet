@@ -61,20 +61,21 @@ def test_keyed_tight_halves_push_nothing(tmp_path):
     assert git(remote, 'rev-parse', 'main').strip() == sha
 
 
-def test_keyed_without_a_records_file_creates_what_tighten_writes(tmp_path):
+@pytest.mark.parametrize('budgets,created', [
+    ('', '{\n  "schema_version": 1,\n  "baseline": {\n'
+         '    "src/x.py": 600\n  }\n}\n'),
+    ('tests/', '{\n  "trees": {\n    "tests/": 15\n  },\n'
+               '  "schema_version": 1,\n  "baseline": {\n'
+               '    "src/x.py": 600\n  }\n}\n'),
+], ids=['per-file-only', 'both'])
+def test_keyed_without_a_records_file_creates_what_tighten_writes(
+        tmp_path, budgets, created):
     files = {**TREE, 'src/x.py': 'x\n' * 600}
     repo, sha, remote = pushed_repo(tmp_path, None, files)
-    # Without tree budgets the per-file half alone still seeds nothing.
-    alone = deliver(repo, remote)
-    assert 'nothing to verify' in alone[MEASURE].stdout
-    assert PUSH not in alone
-    done = deliver(repo, remote, **{'tree-budgets': 'tests/'})
+    done = deliver(repo, remote, **{'tree-budgets': budgets})
     assert done[PUSH].returncode == 0, done[PUSH].stderr
-    created = landed(remote, sha)
-    assert created == ('{\n  "trees": {\n    "tests/": 15\n  },\n'
-                       '  "schema_version": 1,\n  "baseline": {\n'
-                       '    "src/x.py": 600\n  }\n}\n')
-    assert run_gate(repo, 'tighten', tree_budgets='tests/').returncode == 0
+    assert landed(remote, sha) == created
+    assert run_gate(repo, 'tighten', tree_budgets=budgets).returncode == 0
     assert (repo / RECORDS).read_text() == created
 
 

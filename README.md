@@ -323,13 +323,13 @@ Once the base has records, only the base's bind. A base whose records
 map is empty is the same for additions: an entry the head adds for an
 over-ceiling file must be the file's exact head count.
 
-So adopting the action, or a release, is the workflow edit alone. With
-`tree-budgets` set, the first default-branch run with `push-key` writes
-the records file, both maps (see Tree budgets); with it empty, no run
-commits per-file records, so every pull request stays judged by the base
-tree's counts until a records file tighten writes is committed. A pull
-request that grows an over-ceiling file, or adds one, before the base
-has records commits the exact seed instead.
+So adopting the action, or a release, is the workflow edit alone: the
+first default-branch run with `push-key` commits the records file
+tighten creates, the per-file map and, with `tree-budgets` set, the
+`trees` map beside it (see Tree budgets). Until the default branch has
+a records file, every pull request is judged by the base tree's counts.
+A pull request that grows an over-ceiling file, or adds one, before the
+base has records commits the exact seed instead.
 
 Three consequences for an adopting PR:
 

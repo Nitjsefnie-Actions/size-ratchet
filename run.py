@@ -92,9 +92,6 @@ def main() -> int:
             verdict = max(verdict, trees.run(root, records_path, folders, mode,
                                              base, policy_out, require_tight,
                                              keyed, called, staged))
-            if staged and not records.exists_at(root, 'HEAD', records_path):
-                staged = {**policy.staged_seed(root, records_path, member,
-                                               policy_out), **staged}
         if staged:
             deliver.stage(root, records_path, staged)
         return verdict
