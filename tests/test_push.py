@@ -118,6 +118,16 @@ def test_a_tight_checkout_that_is_not_github_sha_fails_too(tmp_path):
     assert f'is not github.sha {sha}' in done[MEASURE].stderr
 
 
+def test_a_records_less_checkout_that_is_not_github_sha_fails_too(tmp_path):
+    repo = make_repo(tmp_path, {'src/x.py': 'a\n' * 520})
+    sha = head(repo)
+    add_and_commit(repo, 'src/y.py', 'd\n', 'a commit the run was not for')
+    done = deliver(repo, tmp_path / 'absent.git', sha=sha)
+    assert done[MEASURE].returncode == 2
+    assert f'is not github.sha {sha}' in done[MEASURE].stderr
+    assert PUSH not in done
+
+
 def test_a_dotted_records_path_still_pushes(tmp_path):
     repo, sha, remote = loose_repo(tmp_path)
     done = deliver(repo, remote, records='./' + RECORDS)
