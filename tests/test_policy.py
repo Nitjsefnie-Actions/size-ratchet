@@ -136,13 +136,15 @@ def test_a_duplicate_type_is_an_error():
 
 
 @pytest.mark.parametrize('folder', ['/abs/', '../up/', 'a/../b/', './tests/',
-                                    'tests//', 'tests/./', './', '//'])
+                                    'tests//', 'tests/./', './', '//',
+                                    '.git/', 'vendor/.git/', 'a/.GIT/b/'])
 def test_a_folder_no_repository_path_can_start_with_is_an_error(folder):
     with pytest.raises(ValueError, match='input overrides line 1 .*repository-relative'):
         config.parse_overrides(f'{folder}: 700\n')
 
 
-@pytest.mark.parametrize('folder', ['.github/', '..x/', 'a./', '.../', 'a/.b/'])
+@pytest.mark.parametrize('folder', ['.github/', '..x/', 'a./', '.../', 'a/.b/',
+                                    '.gitx/', 'a/git/'])
 def test_a_dotted_folder_name_is_still_a_folder(folder):
     assert config.parse_overrides(f'{folder}: 700\n') == {folder: 700}
     assert config.parse_tree_budgets(folder, '') == [folder]
@@ -153,6 +155,8 @@ def test_a_dotted_folder_name_is_still_a_folder(folder):
     ('a/../b/', 'folder'), ('tests/./', 'folder'), ('/', 'folder'),
     ('./a.py', 'path'), ('src//a.py', 'path'), ('/a.py', 'path'),
     ('src/./a.py', 'path'), ('src/..', 'path'), ('.', 'path'), ('..', 'path'),
+    ('vendor/.git/', 'folder'), ('.Git/', 'folder'), ('a/.GIT/x.py', 'path'),
+    ('.git', 'path'),
 ])
 def test_an_exclude_entry_no_repository_path_can_match_is_an_error(entry, kind):
     with pytest.raises(ValueError, match=(
@@ -163,12 +167,13 @@ def test_an_exclude_entry_no_repository_path_can_match_is_an_error(entry, kind):
 
 
 @pytest.mark.parametrize('entry', ['.github/', '..x/', 'a./', '.../', 'a/.b/',
-                                   '.gitignore', 'src/.hidden.py', 'a/..b.py'])
+                                   '.gitignore', 'src/.hidden.py', 'a/..b.py',
+                                   '.gitx/', 'a/.gitx', 'a/.git.py'])
 def test_a_dotted_exclude_name_is_still_an_entry(entry):
     assert config.parse_exclude(f'{entry}\n') == [entry]
 
 
-@pytest.mark.parametrize('entry', ['./tests/', 'tests//'])
+@pytest.mark.parametrize('entry', ['./tests/', 'tests//', 'tests/.git/'])
 def test_tighten_refuses_an_inert_exclude_and_writes_no_records(tmp_path, entry):
     repo = make_repo(tmp_path, {'tests/a.py': 'x\n' * 600})
     done = run_gate(repo, 'tighten', exclude=entry)

@@ -211,9 +211,10 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 
 Invalid inputs fail the run with exit 2 and name the input and the line: a
 malformed line, an unknown type, a folder without a trailing `/`, a
-folder or `exclude` entry with a leading `/` or an empty, `.` or `..`
-segment (as in `./tests/`, `tests//` or `./src/a.py`), a duplicate
-folder, or a ceiling that is not a positive integer. A non-empty
+folder or `exclude` entry with a leading `/` or an empty, `.`, `..` or
+`.git` (in any letter case) segment (as in `./tests/`, `tests//`,
+`./src/a.py` or `vendor/.git/`), a duplicate folder, or a ceiling that is
+not a positive integer. A non-empty
 `tree-budgets` beside `member: trees` fails the same way. Exit 0
 passes, 1 is a violation, 2 is a configuration or environment failure.
 Inputs reach the action through environment variables and are never
