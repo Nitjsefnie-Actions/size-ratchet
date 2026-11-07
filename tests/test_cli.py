@@ -260,15 +260,6 @@ def test_a_non_utf8_records_file_is_named(tmp_path):
     assert 'size-baseline.json' in done.stderr
 
 
-def test_neither_revision_having_records_fails_with_the_seed_instruction(tmp_path):
-    repo = make_repo(tmp_path, {'src/big.py': BIG})
-    done = run_gate(repo, 'check', base_ref=head(repo))
-    assert done.returncode == 1
-    assert 'neither the base revision nor this head carries records' in \
-        done.stderr
-    assert 'run tighten' in done.stderr
-
-
 def test_tighten_seeds_over_ceiling_files(tmp_path):
     repo = make_repo(tmp_path, {'src/big.py': BIG, 'src/small.py': 'x\n'})
     done = run_gate(repo, 'tighten')

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import add_and_commit, git, head, make_repo, run_gate
+from tests.helpers import (add_and_commit, git, head, make_repo, run_gate,
+                           write_files)
 from tests.test_trees import TOTAL, TREE, put
 
 GROW = 'tests/more.txt'  # five lines added under the tree
@@ -45,7 +46,6 @@ def test_an_exact_seed_passes_without_a_feature_commit(tmp_path, make_base):
 @pytest.mark.parametrize('trees,shown', [
     ({'tests/': TOTAL + 1}, 'record 16'),
     ({'tests/': TOTAL - 1}, 'record 14'),
-    ({}, 'no record'),
 ])
 def test_a_seed_off_the_total_fails(tmp_path, make_base, trees, shown):
     repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
@@ -55,6 +55,35 @@ def test_a_seed_off_the_total_fails(tmp_path, make_base, trees, shown):
     assert done.returncode == 1
     assert ('tests/: the base has no record, so the head must carry the '
             f'seed tighten writes: total 15, {shown}') in done.stderr
+
+
+@pytest.mark.parametrize('make_base', [
+    base_without_records, base_without_trees, base_without_the_folder])
+@pytest.mark.parametrize('require_tight', ['false', 'true'])
+@pytest.mark.parametrize('trim', [0, 1])
+def test_no_head_entry_passes_while_the_base_total_holds(
+        tmp_path, make_base, require_tight, trim):
+    repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
+    base = make_base(repo)
+    write_files(repo, {'tests/a.py': 'a\n' * (3 - trim)})
+    add_and_commit(repo, 'docs/a.md', 'd\n', 'chore: hold or trim the tests')
+    done = check(repo, base, require_tight=require_tight)
+    assert done.returncode == 0, done.stderr
+    assert '1 tree budgets hold' in done.stdout
+
+
+@pytest.mark.parametrize('make_base', [
+    base_without_records, base_without_trees, base_without_the_folder])
+def test_no_head_entry_fails_past_the_base_total(tmp_path, make_base):
+    repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
+    base = make_base(repo)
+    add_and_commit(repo, GROW, 'm\n' * 5, 'feat: grow the tests')
+    done = check(repo, base)
+    assert done.returncode == 1
+    assert 'tests/: 20 lines above the base total of 15' in done.stderr
+    put(repo, {'tests/': 20}, {})
+    done = check(repo, base)
+    assert done.returncode == 0, done.stderr
 
 
 # --- the base has a record ------------------------------------------------

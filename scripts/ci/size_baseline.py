@@ -278,7 +278,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
     recorded = set(base_map or {}) | set(head_map or {})
     sizes = measure(root, entries, policy, recorded, records_path)
     if base_map is None:
-        return _check_seed(head_map, sizes, policy)
+        return _check_seed(root, base_ref, records_path, head_map, sizes,
+                           policy)
     # An exact head count for an unrecorded over-ceiling file is a seed
     # only while the base map is empty: against any other base the file
     # was bound by its ceiling, and a records edit cannot loosen that.
@@ -432,7 +433,7 @@ def staged_seed(root, records_path, member, policy):
     return {member or records.DEFAULT_MEMBER: seed}
 
 
-def _check_seed(head_map, sizes, policy):
+def _check_seed(root, base_ref, records_path, head_map, sizes, policy):
     failures = unclassified_violations(sizes, head_map or {}, policy)
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
@@ -441,12 +442,8 @@ def _check_seed(head_map, sizes, policy):
                   'ceiling for it or exclude it', file=sys.stderr)
         return 1
     if head_map is None:
-        print('size-ratchet: the size ratchet failed:', file=sys.stderr)
-        print('  neither the base revision nor this head carries records; '
-              'run tighten on the proposed head and commit the records '
-              'file it writes', file=sys.stderr)
-        print(SEED_REMEDY, file=sys.stderr)
-        return 1
+        return _check_against_base_counts(root, base_ref, records_path,
+                                          sizes, policy)
     expected = tightened(None, sizes, policy)
     if head_map != expected:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
@@ -459,4 +456,30 @@ def _check_seed(head_map, sizes, policy):
         return 1
     print(f'size-ratchet: seeded records verified over {len(sizes)} '
           'measured files')
+    return 0
+
+
+def _check_against_base_counts(root, base_ref, records_path, sizes, policy):
+    base_seed = tightened(None, measure(root, list_tree(root, base_ref),
+                                        policy, (), records_path), policy)
+    failures = []
+    for path, (count, limit) in ceiling_violations(sizes, {}, policy).items():
+        held = base_seed.get(path)
+        if held is None:
+            failures.append(f'{path}: {count} lines above its ceiling of '
+                            f'{limit}')
+        elif count > held:
+            failures.append(f'{path}: {count} lines above its base count of '
+                            f'{held}')
+    if failures:
+        print('size-ratchet: the size ratchet failed:', file=sys.stderr)
+        print('  neither the base revision nor this head carries records, '
+              "so the base tree's counts bind:", file=sys.stderr)
+        for failure in failures:
+            print(f'  {failure}', file=sys.stderr)
+        print(GROWTH_REMEDY, file=sys.stderr)
+        print('Or carry the exact seed: ' + SEED_REMEDY, file=sys.stderr)
+        return 1
+    print(f'size-ratchet: {len(sizes)} measured files within the size policy '
+          "and the base tree's counts")
     return 0

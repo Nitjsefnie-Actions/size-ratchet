@@ -78,8 +78,7 @@ def run(root, records_path, folders, mode, base_ref, policy, require_tight,
         return _verify(head, sums, require_tight, push_key_set, called,
                        staged)
     base = records.read_map_at(root, base_ref, records_path, TREES_MEMBER) or {}
-    base_sums = (totals(root, base_ref, folders, policy, records_path)
-                 if require_tight else {})
+    base_sums = totals(root, base_ref, folders, policy, records_path)
     return _report(_check(root, base_ref, base, head or {}, sums, base_sums,
                           require_tight), sums)
 
@@ -101,6 +100,14 @@ def _check(root, base_ref, base, head, sums, base_sums, require_tight):
     for folder, total in sums.items():
         record = head.get(folder)
         shown = 'no record' if record is None else f'record {record}'
+        if folder not in base and record is None:
+            if total > base_sums[folder]:
+                failures.append(
+                    f'{folder}: {total} lines above the base total of '
+                    f'{base_sums[folder]}; the base has no record, so its '
+                    'total binds unless the head carries the seed tighten '
+                    'writes')
+            continue
         if folder not in base:
             if record != total:
                 failures.append(
