@@ -173,9 +173,8 @@ Under `require-tight: 'true'` a pull request that shrinks, deletes or
 excludes a recorded file — or graduates one by shrinking it below its
 ceiling — fails until that entry in the same pull request says what
 tighten would write — lowered, or dropped. A ceiling the pull request
-raises without moving a count stays a stale notice either way. For
-initial adoption, run tighten on the proposed head and commit the seed
-in the adoption PR (see Seeding).
+raises without moving a count stays a stale notice either way. An
+adoption PR needs no records file (see Seeding).
 
 Two pull requests checked against the same base can both merge and leave
 a record above its file's count — each lowered the record to its own
@@ -309,18 +308,28 @@ the records file for a deliberate commit.
 ## Seeding
 
 With no records, tighten records every file over its ceiling at its current
-count. A check whose `base-ref` has no records uses the head's: the head's
-baseline map must equal exactly what a seeding tighten over the head tree
-writes, and a failure names each differing entry. If neither revision has
-records, check fails and says to run tighten to seed. Once the base has
-records, only the base's bind. A base whose records map is empty is the
-same for additions: an entry the head adds for an over-ceiling file must
-be the file's exact head count.
+count. A check whose `base-ref` has no records, against a head that has
+none either, judges the head by the base tree: a file over its ceiling
+there may not grow past its base count, and any other file, at or under
+its ceiling at the base or new in the head, may not exceed its ceiling.
+A head that carries records over such a base must carry exactly what a
+seeding tighten over the head tree writes, and a failure names each
+differing entry; any other map fails, so a head edit never loosens the
+gate. `unclassified: fail` fails an untyped, unrecorded file either way,
+and `require-tight` adds nothing for an entry the base does not record.
+Once the base has records, only the base's bind. A base whose records
+map is empty is the same for additions: an entry the head adds for an
+over-ceiling file must be the file's exact head count.
+
+So adopting the action, or a release, is the workflow edit alone: the
+first default-branch run with `push-key` writes the records (see Records
+on the default branch). A pull request that grows an over-ceiling file,
+or adds one, before the base has records commits the exact seed instead.
 
 Three consequences for an adopting PR:
 
-- **Every later commit in the adopting PR that changes a recorded file's
-  count needs the seed regenerated.** The seed binds exactly: a commit
+- **A PR that carries a seed regenerates it on every later commit that
+  changes a recorded file's count.** The seed binds exactly: a commit
   that adds ten lines to a seeded file fails the seed-fallback comparison
   until tighten runs again over the new head.
 - **The widening limit.** After seeding, a change that brings an
@@ -347,9 +356,15 @@ empty, the default, nothing reads, judges or writes `trees`.
   above it, drops one for a folder no longer listed, and never raises one.
   It rewrites only the `trees` value and the member's value.
 - **Check** judges the head against the base's budgets. When the base has
-  no budget for a folder, the head must carry exactly the seed tighten
-  writes, and no feature commit is needed. Otherwise the run fails, naming
-  the folder, its total and the budget, when the head's total exceeds the
+  no budget for a folder and the head carries none, the base tree's total
+  stands in as the budget: the run fails, naming the folder, when the
+  head's total exceeds it. A head that carries a budget the base lacks
+  must carry exactly the seed tighten writes, the head's total, and needs
+  no feature commit; any other value fails, so a head edit never loosens
+  the gate, and `require-tight` adds nothing for that folder. A pull
+  request that grows such a folder carries that seed. Otherwise the run
+  fails, naming the folder, its total and the budget, when the head's
+  total exceeds the
   head's budget, when the head drops the budget or lowers it below the
   total, or when the head's budget is above the base's and no commit
   subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?:` — only a
