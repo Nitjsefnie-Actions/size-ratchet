@@ -26,6 +26,8 @@ MODES = ('auto', 'check', 'tighten')
 TREES_MEMBER = 'trees'
 STALE = ('warn', 'fail')
 _DIGITS = re.compile(r'[0-9]+')
+_NTFS_DOT_GIT = re.compile(r'(^|.\\)(\.git|git~1)[. ]*([:\\]|\Z)',
+                           re.ASCII | re.IGNORECASE)
 
 
 def type_of(rel):
@@ -116,7 +118,8 @@ def _relative(in_error, entry):
     folder = entry.endswith('/')
     segments = entry.split('/')
     named = segments[:-1] if folder else segments
-    if {'', '.', '..', '.git'} & {segment.lower() for segment in named}:
+    if any(segment in ('', '.', '..') or _NTFS_DOT_GIT.search(segment)
+           for segment in named):
         kind, prefix = ('folder', ' prefix') if folder else ('path', '')
         raise ValueError(f'{in_error}: {kind} {entry!r} is not a '
                          f'repository-relative path{prefix}')
