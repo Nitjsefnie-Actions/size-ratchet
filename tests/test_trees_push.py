@@ -76,6 +76,15 @@ def test_keyed_tight_halves_push_nothing(tmp_path):
     assert git(remote, 'rev-parse', 'main').strip() == sha
 
 
+def test_keyed_empty_per_file_map_is_records_not_a_seed(tmp_path):
+    files = {**TREE, 'src/x.py': 'x\n' * 600}
+    repo, sha, remote = pushed_repo(tmp_path, '{\n  "baseline": {}\n}\n', files)
+    done = deliver(repo, remote)
+    assert done[MEASURE].returncode == 0, done[MEASURE].stderr
+    assert 'per-file records are tight' in done[MEASURE].stdout
+    assert PUSH not in done
+
+
 SEEDED = ('  "schema_version": 1,\n  "baseline": {\n'
           '    "src/x.py": 600\n  }\n}\n')
 

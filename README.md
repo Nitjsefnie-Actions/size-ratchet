@@ -388,7 +388,8 @@ empty, the default, nothing reads, judges or writes `trees`.
   file at all commits the document tighten creates, both maps; a called run
   without the key names it in a notice; the block's own run without the
   key fails on it under `require-tight: 'true'` and warns under
-  `'false'`. A records file holding only `trees` is records.
+  `'false'`. A records file holding only `trees` is records for the tree
+  budgets; a keyed run adds the per-file seed to it (see Seeding).
 
 With `tree-budgets` set, the per-file gate and the tree budgets each
 report their verdict, and the run fails when either fails.
