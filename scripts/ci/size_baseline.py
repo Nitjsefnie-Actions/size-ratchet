@@ -374,6 +374,10 @@ def _verify(root, records_path, member, entries, policy, head_map,
     or note, a called run)."""
     if push_key_set:
         deliver.check_head(root)
+    if (head_map is None and push_key_set
+            and not records.exists_at(root, 'HEAD', records_path)):
+        staged.update(staged_seed(root, records_path, member, policy))
+        return 0
     if head_map is None:
         print('size-ratchet: no records on the default branch; '
               'nothing to verify')
@@ -429,7 +433,7 @@ def staged_seed(root, records_path, member, policy):
     seed = tightened(None, measure(root, entries, policy, (), records_path),
                      policy)
     print('size-ratchet: no records file on the default branch; staged '
-          'the per-file seed tighten writes beside the tree budgets')
+          'the per-file seed tighten writes')
     return {member or records.DEFAULT_MEMBER: seed}
 
 
