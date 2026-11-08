@@ -79,7 +79,9 @@ of the block, so a pull request from any branch but `main` or
 reader taking the newest run on that commit reads the check. The
 checkout selects the PR's head tree; full history supplies the PR base without retaining a
 token. The action needs a Git checkout, bash and Python 3.15, which it
-sets up itself. It runs its runner under `python3 -I`: the standard
+sets up itself; when that install fails twice, a minute apart, it warns
+and runs on the runner's own `python3` instead, failing the step if the
+runner has none. It runs its runner under `python3 -I`: the standard
 library and the action's own modules only, so nothing from the consumer's
 tree is ever imported or executed, and there is no dependency to install
 or pin.
