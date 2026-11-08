@@ -219,6 +219,6 @@ def test_the_key_is_a_0600_file_for_pinned_ssh_and_gone_after(tmp_path):
     # The key file and its directory went with the push step.
     temp = Path(repo.parent / f'{repo.name}-runner-temp')
     assert sorted(item.name for item in temp.iterdir()) == \
-        sorted(['size-ratchet-records', 'output-1', 'output-2'])
+        sorted(['size-ratchet-records', 'output-4', 'output-5'])
     assert 'SECRET-KEY-TEXT' not in done[MEASURE].stdout + \
         done[PUSH].stdout + done[PUSH].stderr

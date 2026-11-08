@@ -87,9 +87,32 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+    # A download outage can outlast any repeat, so neither install may fail
+    # the action: the runner needs only the standard library.
+    - name: Install Python
+      id: install-python
+      continue-on-error: true
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '3.15.1'
+    - name: Wait before repeating the Python install
+      if: steps.install-python.outcome == 'failure'
+      shell: bash
+      run: sleep 60
+    - name: Repeat the Python install
+      id: repeat-python
+      if: steps.install-python.outcome == 'failure'
+      continue-on-error: true
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '3.15.1'
+    - name: Fall back to the runner's Python
+      if: steps.repeat-python.outcome == 'failure'
+      shell: bash
+      # With no python3, bash -e fails the action here.
+      run: |
+        version=$(python3 --version)
+        echo "::warning::The action's Python could not be installed; measuring with the runner's $version."
     - name: Measure and apply the ratchet
       id: measure
       shell: bash

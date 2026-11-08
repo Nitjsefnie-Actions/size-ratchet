@@ -151,9 +151,10 @@ MEASURE = 'Measure and apply the ratchet'
 PUSH = 'Push the tightened records'
 
 
-def run_action(repo, inputs, github, extra_env=None):
+def run_action(repo, inputs, github, extra_env=None, install_outcomes=()):
     """Run action.yml's run: steps as the runner does, this interpreter
-    standing in for setup-python. Returns {step name: CompletedProcess}."""
+    standing in for setup-python, whose steps take ``install_outcomes`` in
+    order (then 'success'). Returns {step name: CompletedProcess}."""
     spec = yaml.safe_load((ACTION_ROOT / 'action.yml').read_text())
     values = {name: render(item['default'], github, {})
               for name, item in spec['inputs'].items()}
@@ -161,11 +162,16 @@ def run_action(repo, inputs, github, extra_env=None):
     temp = repo.parent / f'{repo.name}-runner-temp'
     temp.mkdir(exist_ok=True)
     outputs, results = {}, {}
+    outcomes = iter(install_outcomes)
     for index, step in enumerate(spec['runs']['steps']):
-        if 'uses' in step:
-            continue
         contexts = {'inputs': values, 'steps': outputs}
         if 'if' in step and not eval_expression(step['if'], github, contexts):
+            continue
+        if 'uses' in step:
+            outputs[step['id']] = {'outcome': next(outcomes, 'success')}
+            if outputs[step['id']]['outcome'] == 'failure' \
+                    and not step.get('continue-on-error'):
+                break
             continue
         output = temp / f'output-{index}'
         output.write_text('')
@@ -180,7 +186,7 @@ def run_action(repo, inputs, github, extra_env=None):
             'PATH': f'{Path(sys.executable).parent}{os.pathsep}{os.environ["PATH"]}'})
         env.update(extra_env or {})
         env.update({name: render(value, github, contexts)
-                    for name, value in step['env'].items()})
+                    for name, value in step.get('env', {}).items()})
         done = subprocess.run(
             ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
              step['run']], cwd=repo, env=env, capture_output=True, text=True,
