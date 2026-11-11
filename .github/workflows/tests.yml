@@ -62,6 +62,11 @@ jobs:
         #
         # Before the lint step: work done against a base main has already moved
         # on from is work whose verdict does not carry.
+        #
+        # Pull requests only: a push run's head IS a commit of main, so "rebase
+        # onto main" cannot apply to it, and a commit that lands a moment after
+        # it would turn a commit already on main red.
+        if: github.event_name == 'pull_request'
         run: python3 tests/gate_base_freshness.py
 
       - name: Refuse a commit whose scope names a workflow outside the ci type
