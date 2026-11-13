@@ -136,7 +136,7 @@ action commits what tighten writes with the `main-push` environment's
 `MASTER_PUSH_DEPLOY_KEY`.
 
 The size records are committed by the size-baseline job itself. It runs
-the README install block as written, so a pull request that shrinks,
+the README install block with `tests/` budgeted, so a pull request that shrinks,
 deletes or graduates a recorded file need not touch the records, and on
 a main push the action commits what tighten writes with the `main-push`
 environment's `MASTER_PUSH_DEPLOY_KEY`. Without that key the main run
