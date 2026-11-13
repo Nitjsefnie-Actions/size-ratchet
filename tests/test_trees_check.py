@@ -117,6 +117,17 @@ def test_a_dropped_record_fails(tmp_path):
         done.stderr
 
 
+def test_a_nul_byte_does_not_hide_a_files_growth(tmp_path):
+    repo = make_repo(tmp_path, TREE)
+    base = put(repo, {'tests/': TOTAL}, {})
+    # git calls a NUL in the first 8000 bytes binary; the budget counts it.
+    add_and_commit(repo, 'tests/a.py', b'\0' + b'a\n' * 1003,
+                   'fix: grow a test behind a NUL')
+    done = check(repo, base, require_tight='false')
+    assert done.returncode == 1, done.stderr
+    assert 'tests/: 1015 lines above its record of 15' in done.stderr
+
+
 @pytest.mark.parametrize('subject,verdict', [
     ('feat: grow the tests', 0),
     ('feat(harness): grow the tests', 0),

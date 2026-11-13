@@ -33,8 +33,7 @@ def totals(root, revision, folders, policy, records_path):
               if size_baseline.is_regular(mode) and path != records_path
               and not policy.excluded(path) and path.startswith(prefixes)]
     for path, blob in size_baseline.read_blobs(root, wanted):
-        if size_baseline.is_binary(blob):
-            continue
+        # Binary or not: one NUL byte must not hide a file's lines.
         lines = size_baseline.count_lines(blob)
         # A file under nested listed folders counts toward each of them.
         for folder in folders:
