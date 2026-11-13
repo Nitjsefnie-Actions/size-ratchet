@@ -84,10 +84,10 @@ def test_member_trees_is_refused_beside_tree_budgets(tmp_path):
 # --- measurement and tighten ----------------------------------------------
 
 
-def test_the_total_sums_every_text_file_under_the_prefix(tmp_path):
+def test_the_total_sums_every_file_under_the_prefix(tmp_path):
     repo = make_repo(tmp_path, {
         **TREE,
-        'tests/blob.bin': b'x\0\n' * 11,      # binary
+        'tests/blob.bin': b'x\0\n' * 11,      # binary, counted all the same
         'tests/skip.py': 'k\n' * 13,          # excluded
         'tests_old/x.py': 'o\n' * 17,         # shares the characters, not the /
         'src/y.py': 'y\n' * 19,               # outside
@@ -100,7 +100,7 @@ def test_the_total_sums_every_text_file_under_the_prefix(tmp_path):
                     exclude='tests/skip.py', records='tests/records.json')
     assert done.returncode == 0, done.stderr
     assert written_trees(repo, 'tests/records.json') == \
-        {'tests/': TOTAL, 'tests/deep/': 7}
+        {'tests/': TOTAL + 11, 'tests/deep/': 7}
 
 
 def test_tighten_lowers_keeps_drops_and_never_raises(tmp_path):

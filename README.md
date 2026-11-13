@@ -352,9 +352,11 @@ Three consequences for an adopting PR:
 
 Every file can stay under its ceiling while a folder grows without limit.
 Each `<folder>/` line in `tree-budgets` budgets that folder's total: the
-sum of line counts, by the measurement rule above, of every regular,
-non-binary file in `git ls-tree -r` under that repository-relative prefix,
-typed or not, minus `exclude`d paths and the records file. A file under
+sum of line counts, by the measurement rule above, of every regular
+file in `git ls-tree -r` under that repository-relative prefix, typed or
+not, minus `exclude`d paths and the records file. A file git reports as
+binary counts too, by the same rule, so a NUL byte never hides a
+file's lines from its folder's budget. A file under
 two listed folders counts toward both. Totals live under the records
 file's top-level `trees` key, `{"tests/": 139242}`, whatever `member`
 says; `member` still selects only the per-file map. With `tree-budgets`
