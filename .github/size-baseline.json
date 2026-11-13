@@ -1,4 +1,7 @@
 {
+  "trees": {
+    "tests/": 4444
+  },
   "schema_version": 1,
   "baseline": {
     "tests/gate_base_freshness.py": 627
