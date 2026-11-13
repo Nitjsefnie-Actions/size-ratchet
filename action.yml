@@ -79,7 +79,8 @@ inputs:
   tree-budgets:
     description: >-
       Multiline `"<folder>/"` lines, each budgeting the total line count of
-      every text file under that folder in the records file's `trees` map.
+      every regular file under that folder, binary or not, in the records
+      file's `trees` map.
       A budget falls with its tree and rises only in a range carrying a
       feat commit. Empty (default) budgets no tree.
     required: false

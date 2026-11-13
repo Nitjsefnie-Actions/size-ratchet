@@ -256,7 +256,8 @@ measured revision that has a ceiling, or has a record, is measured in
 lines: the number of `\n` bytes, plus one when a non-empty file does not
 end in `\n`. Symlinks, submodules and files git reports as binary (a NUL
 byte in the first 8000 bytes, git's own rule) are never measured and are
-never unclassified. A file that cannot be read fails the run, naming it.
+never unclassified; only a tree budget counts a binary file (see Tree
+budgets). A file that cannot be read fails the run, naming it.
 Check measures the checkout's `HEAD`; the install block above checks out
 the PR head SHA with `fetch-depth: 0`.
 
