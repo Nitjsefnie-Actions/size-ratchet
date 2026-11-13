@@ -143,7 +143,7 @@ def test_the_block_matches_the_action_defaults():
 
 
 def test_the_own_gate_mirrors_the_block():
-    """The repository's own size-baseline job is the block, with ./ pinned."""
+    """The own size-baseline job is the block with ./ pinned, except tree-budgets."""
     tests_yml = yaml.safe_load(
         (ACTION_ROOT / '.github' / 'workflows' / 'tests.yml').read_text())
     job = tests_yml['jobs']['size-baseline']
@@ -154,7 +154,7 @@ def test_the_own_gate_mirrors_the_block():
         [step.get('if') for step in
          install_block()['jobs']['size-baseline']['steps']]
     own = [step for step in job['steps'] if step.get('uses') == './'][0]
-    assert own['with'] == block_with_inputs()
+    assert own['with'] == {**block_with_inputs(), 'tree-budgets': 'tests/'}
     checkout = [step for step in job['steps']
                 if step.get('uses', '').startswith('actions/checkout')][0]
     block_checkout = [step for step in install_block()['jobs']

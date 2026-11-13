@@ -15,7 +15,7 @@ on:
     # the `pull_request` event below, and an unfiltered `push` schedules
     # the same commit a second time under a different ref, which the
     # `concurrency` group cannot collapse. There is no workflow_dispatch:
-    # the size-baseline job runs the install block as written, whose
+    # the size-baseline job runs the install block, whose
     # steps' `if` names only pull requests and default-branch pushes, and
     # a completed run reruns from its own run page.
     branches: [main]
@@ -368,13 +368,13 @@ jobs:
           if-no-files-found: error
 
   size-baseline:
-    # The README install block as written, with this repository pinned to
-    # its own checkout. The steps' `if` is the block's: on any other event
-    # this workflow runs on the job completes green without measuring.
-    # The `with:` values are the block's: a pull request is never asked to
-    # lower a record, and on a main push the action commits the tightened
-    # records with the main-push environment's deploy key, the one secret
-    # the job's environment binds only on that push.
+    # The README install block, with this repository pinned to its own
+    # checkout and tests/ budgeted. The steps' `if` is the block's: on any
+    # other event this workflow runs on the job completes green without
+    # measuring. The other `with:` values are the block's: a pull request
+    # is never asked to lower a record, and on a main push the action
+    # commits the tightened records with the main-push environment's
+    # deploy key, the one secret its environment binds only on that push.
     environment: ${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch && format('{0}-push', github.event.repository.default_branch) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -402,7 +402,7 @@ jobs:
           stale: 'warn'
           require-tight: 'false'
           push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
-          tree-budgets: ''
+          tree-budgets: 'tests/'
 
   aggregate:
     # Like claudit's aggregate: always report, including after a failed or
