@@ -134,6 +134,7 @@ def test_a_nul_byte_does_not_hide_a_files_growth(tmp_path):
     ('feat!: grow the tests', 0),
     ('feat(harness)!: grow the tests', 0),
     ('feat!!: grow the tests', 1),
+    ('feat-: grow the tests', 1),
     ('feat !: grow the tests', 1),
     ('feat(harness)! grow the tests', 1),
     ('feat!(harness): grow the tests', 1),
