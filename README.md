@@ -375,9 +375,11 @@ empty, the default, nothing reads, judges or writes `trees`.
   total exceeds the
   head's budget, when the head drops the budget or lowers it below the
   total, or when the head's budget is above the base's and no commit
-  subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?:` — only a
-  feature change may raise a budget; any other change trims its own lines
-  under the folder. Reading that history needs a full clone: a shallow or
+  subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?!?:` (`feat:`,
+  `feat!:`, `feat(<scope>):` or `feat(<scope>)!:`) — only a feature
+  change, breaking or not, may raise a budget; any other change trims
+  its own lines under the folder. Reading that history needs a full
+  clone: a shallow or
   unreadable history fails with exit 2, and is read only when a budget
   rises. Under `require-tight: 'true'`, a folder whose total or budget
   moved between base and head must record exactly the head's total.

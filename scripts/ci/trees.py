@@ -11,15 +11,17 @@ import records
 import size_baseline
 from config import TREES_MEMBER
 
-FEATURE_SUBJECT = re.compile(r'feat(\([^)]*\))?:')
+FEATURE_SUBJECT = re.compile(r'feat(\([^)]*\))?!?:')
 RAISE_REMEDY = (
     'Only a feature change may raise a tree budget: a commit subject in '
-    'base-ref..HEAD starting feat: or feat(<scope>):. Any other change '
-    'trims its own lines under that folder.')
+    'base-ref..HEAD starting feat:, feat!:, feat(<scope>): or '
+    'feat(<scope>)!:. Any other change trims its own lines under that '
+    'folder.')
 TREE_REMEDY = (
     "Tighten writes each listed folder's budget at its total, never above "
-    'its record. A higher budget needs a feature commit in the range; any '
-    'other change trims its own lines under the folder.')
+    'its record. A higher budget needs a feature commit in the range, '
+    'breaking (feat!:) or not; any other change trims its own lines under '
+    'the folder.')
 
 
 def totals(root, revision, folders, policy, records_path):

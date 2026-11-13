@@ -120,6 +120,12 @@ def test_a_dropped_record_fails(tmp_path):
 @pytest.mark.parametrize('subject,verdict', [
     ('feat: grow the tests', 0),
     ('feat(harness): grow the tests', 0),
+    ('feat!: grow the tests', 0),
+    ('feat(harness)!: grow the tests', 0),
+    ('feat!!: grow the tests', 1),
+    ('feat !: grow the tests', 1),
+    ('feat(harness)! grow the tests', 1),
+    ('feat!(harness): grow the tests', 1),
     ('fix: grow the tests', 1),
     ('feature: grow the tests', 1),
     ('feat grow the tests', 1),
@@ -138,6 +144,10 @@ def test_a_raise_needs_a_feature_subject_in_the_range(tmp_path, subject,
                 'feature commit. Only a feature change may raise a tree '
                 'budget') in done.stderr
         assert 'trims its own lines under that folder' in done.stderr
+        assert ('starting feat:, feat!:, feat(<scope>): or '
+                'feat(<scope>)!:.') in done.stderr
+        assert 'feature commit in the range, breaking (feat!:) or not' in \
+            done.stderr
 
 
 def test_a_feature_commit_before_the_base_does_not_count(tmp_path):
