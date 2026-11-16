@@ -28,8 +28,8 @@ what it affects, and if it is accepted, a rough idea of when a fix will
 land. If it takes longer than that, you will be told why rather than left
 waiting.
 
-Those two clocks are one person's working days. As of 2026-10-24 this
-project had no fallback maintainer — [CONTRIBUTING.md](CONTRIBUTING.md)
+Those two clocks are one person's working days. This project has no
+fallback maintainer — [CONTRIBUTING.md](CONTRIBUTING.md)
 records what that means — so the promises above are conditional on this
 person being available to work on a report. A promise kept is kept as
 written, and a slow answer can reflect that person's availability rather

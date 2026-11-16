@@ -5,9 +5,8 @@ CONTRIBUTING.md's scope table allows a workflow's name as a scope only with
 type `ci`, and names the distinction the other way round: the type
 disambiguates shared names, so `ci(tests)` changes the tests workflow while
 `test(harness)` changes the suite machinery the directory also holds.
-Nothing checked it here until this file existed. Prose that no gate reads
-is a convention, not a rule, so this check reads the same table out of the
-history itself.
+Prose that no gate reads is a convention, not a rule, so this check reads the
+same table out of the history itself.
 
 The workflow-name set is DERIVED at HEAD from the tracked files under
 .github/workflows, not kept in a list here. A remembered list is only as
@@ -27,8 +26,8 @@ leaves the set — a false green this gate exists not to give.
 
 Only the OUTGOING range origin/main..HEAD is examined, and the green line
 says so. Already-merged history is what the check exists to stop repeating,
-not what it re-tries: re-judging the two `fix(tests)` commits above would
-red every fetch of main forever over commits nobody can amend.
+not what it re-tries: re-judging the two `fix(tests)` commits already on main
+would red every fetch of main forever over commits nobody can amend.
 
 WHAT IT CANNOT SEE, and says so rather than guessing:
 

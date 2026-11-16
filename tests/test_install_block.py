@@ -243,7 +243,7 @@ def test_the_default_branch_run_reports_a_loose_entry(tmp_path):
 
 
 def test_a_loose_merge_under_require_tight_false_leaves_main_green(tmp_path):
-    # Issue 35: under 'false' a pull request shrinks one recorded file and
+    # Under 'false' a pull request shrinks one recorded file and
     # deletes another without touching the records; the merged tree's
     # default-branch run names each loose entry as a notice and passes,
     # while 'true' over the same tree still fails naming them.
