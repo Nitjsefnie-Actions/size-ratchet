@@ -94,9 +94,7 @@ jobs:
         # --requirement files in one internal pip dry-run, and a hash-pinned
         # manifest beside an un-hashed one flips that resolution into
         # --require-hashes mode, which fails on the hashes the other manifest
-        # does not carry (observed on this workflow's first run in
-        # Nitjsefnie-Actions/pr-gate, the repository this file was ported
-        # from).
+        # does not carry.
         #
         # No --ignore-vuln entries at present.
         #

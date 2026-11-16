@@ -67,9 +67,8 @@ jobs:
 
       - name: Refuse a commit whose scope names a workflow outside the ci type
         # CONTRIBUTING.md's scope table allows a workflow's name as a scope
-        # only with type `ci`, and prose no gate reads is a convention — the
-        # two fix(tests) commits on main are that table losing. In this job
-        # rather than a new one: a new job would be a new required status
+        # only with type `ci`, and prose no gate reads is a convention. In this
+        # job rather than a new one: a new job would be a new required status
         # context, which means editing the ruleset, and a job that is already
         # required is where the freshness step went for the same reason.
         # After the freshness step: both compare the head against freshly

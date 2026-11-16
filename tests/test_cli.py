@@ -94,8 +94,8 @@ def test_stale_fail_fails(tmp_path):
 
 
 def test_a_graduated_notice_names_the_record(tmp_path):
-    # The base carries a loose record for a file already at its ceiling
-    # (issue 27): the graduated verdict's detail is the record, so the
+    # The base carries a loose record for a file already at its ceiling:
+    # the graduated verdict's detail is the record, so the
     # notice reads the record against the count, never the ceiling.
     repo = make_repo(tmp_path, {'src/x.py': 'x\n' * 500})
     base = put_records(repo, {'src/x.py': 550})
@@ -108,9 +108,9 @@ def test_a_graduated_notice_names_the_record(tmp_path):
 
 @pytest.mark.parametrize('stale', ['warn', 'fail'])
 def test_an_unchanged_record_is_neither_failure_nor_stale(tmp_path, stale):
-    # A record equal to the head count (issue 11) is neither a failure nor
-    # a stale notice; before the fix the check crashed on it instead. The
-    # file sits over its ceiling, so the record is 'same', not graduated.
+    # A record equal to the head count is neither a failure nor a stale
+    # notice, and the check must not crash on it. The file sits over its
+    # ceiling, so the record is 'same', not graduated.
     repo = make_repo(tmp_path, {'src/a.py': BIG})
     base = put_records(repo, {'src/a.py': 501})
     done = run_gate(repo, 'check', base_ref=base, stale=stale)
@@ -222,7 +222,7 @@ def test_check_reads_the_committed_records_not_the_working_tree(tmp_path):
 
 def test_a_head_that_drops_an_untyped_record_cannot_escape_it(tmp_path):
     # Base records an untyped file; the head grows it and drops the entry.
-    # The base's record still binds (issue 1 items 4 and 5).
+    # The base's record still binds.
     repo = make_repo(tmp_path, {'Makefile': 'x\n' * 900})
     base = put_records(repo, {'Makefile': 900})
     add_and_commit(repo, 'Makefile', 'x\n' * 950, 'grow the untyped file')
