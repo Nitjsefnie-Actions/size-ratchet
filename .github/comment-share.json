@@ -1,7 +1,7 @@
 {
   ".github/dependabot.yml": [
-    931,
-    1347
+    851,
+    1267
   ],
   ".github/scripts/diff_coverage.py": [
     4703,
@@ -12,8 +12,8 @@
     5512
   ],
   ".github/workflows/audit.yml": [
-    3527,
-    5468
+    3428,
+    5369
   ],
   ".github/workflows/codeql.yml": [
     1822,
@@ -40,8 +40,8 @@
     2863
   ],
   ".github/workflows/tests.yml": [
-    9789,
-    16316
+    9738,
+    16265
   ],
   "run.py": [
     675,
@@ -64,8 +64,8 @@
     12304
   ],
   "tests/commit_scopes.py": [
-    6966,
-    12515
+    6933,
+    12482
   ],
   "tests/gate_base_freshness.py": [
     11578,
