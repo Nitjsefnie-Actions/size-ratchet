@@ -33,10 +33,7 @@ tests/*
 !.github/size-baseline.json
 !.github/comment-share.json
 !.github/ci-thresholds.json
-!.github/scripts/
-.github/scripts/*
-!.github/scripts/diff_coverage.py
-!.github/scripts/ratchet_thresholds.py
+!.github/test-times.json
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/*.yml
