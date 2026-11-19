@@ -63,7 +63,7 @@ def put_records(repo, baseline, member='baseline'):
 
 def run_gate(repo, mode, base_ref=None, extra_env=None, **inputs):
     """Run run.py as the composite action does: env data, python -I. The
-    subprocess inherits this environment, coverage hook included."""
+    subprocess inherits this environment, so coverage reaches it."""
     env = dict(os.environ)
     env['GITHUB_WORKSPACE'] = str(repo)
     env['SIZE_RATCHET_MODE'] = mode
