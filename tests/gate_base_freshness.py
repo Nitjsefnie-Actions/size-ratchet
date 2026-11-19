@@ -63,14 +63,14 @@ from pathlib import Path
 # silently smaller set.
 #
 # The ruleset requires `actionlint` and the `aggregate` check; the aggregate
-# folds `shellcheck` and `suites`, so the files those legs read are walked
-# here too — a stale green on a leg folds into the aggregate, which is the
+# folds `shellcheck`, `plan`, `suites` and `report`, so the files those legs
+# read are walked too — a stale green on a leg folds into the aggregate, the
 # hazard this check exists for. `size-baseline` is deliberately absent: its
 # step runs the local action with `uses: ./`, whose files are the whole
 # tracked tree, and walking it would make every commit a freshness question
 # — strict_required_status_checks_policy reached through the back door,
 # against a ruleset the maintainer set to false on purpose.
-REQUIRED_JOBS = ("actionlint", "aggregate", "shellcheck", "suites")
+REQUIRED_JOBS = ("actionlint", "aggregate", "plan", "report", "shellcheck", "suites")
 
 # The branch a required check's head is compared against. Not configurable:
 # a second branch here would be a second base, and this question has one.
