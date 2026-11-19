@@ -100,34 +100,24 @@ there.
 
 ## Records
 
-The coverage floor tightens on every default-branch push. Once its own
-suite and coverage gate pass on main, the tests workflow's measured cell
-stages a `ci-thresholds-ratchet` artifact when the measured coverage total
-clears the recorded one by more than the hysteresis (a lower or
-barely-better measurement stages nothing). Another job can still fail
-after it, so a staged artifact lands only from a tests run that succeeded
-as a whole.
+The coverage floor is gated and raised by
+[test-ratchet](https://github.com/Nitjsefnie-Actions/test-ratchet). In the
+tests workflow, `plan` splits the test files into shards, each `suites`
+leg runs one shard with coverage measured, and `report` merges the
+ubuntu cell's shards and gates the total against the floor in
+`.github/ci-thresholds.json` at the pull request's base, then comments
+on the pull request. A fork's pull request gets that comment from the
+[test-ratchet comment workflow](.github/workflows/test-ratchet-comment.yml)
+instead.
 
-The separate top-level [ratchet-push workflow](.github/workflows/ratchet-push.yml)
-lands the result. It admits only successful main push runs of the tests
-workflow, downloads the artifact that run staged, and creates one
-records-only commit with the environment deploy key. It checks out no code,
-installs nothing, and runs no fetched helpers. Configure
-`MASTER_PUSH_DEPLOY_KEY` in the `main-push` environment; a missing key fails
-loudly, and so does an artifact without its records file or measured base.
-The bot commit reruns the gate once, and an unchanged floor stages no
-artifact, so the chain stops there.
-
-When main has moved, the push job drops the run outright when main carries
-any change made after the artifact's measured base outside the records
-paths — `.github/size-baseline.json`, `.github/comment-share.json` and
-`.github/ci-thresholds.json` are excluded from that check — because a
-clean merge could otherwise land a floor above the coverage main now
-measures, and the floor never falls. Records-only edits survive into a
-three-way merge of the thresholds file against that base. A conflict, an unreadable ancestor or invalid merged
-JSON drops the run with a summary; a push rejected while main stood still
-is an error. A rejection after main moved drops the stale run so the next
-gate can measure again.
+On a push to main whose gate passed and whose shards all passed, a total
+that clears the recorded one by more than the hysteresis (1.5 points)
+becomes the record, with the floor 1.5 points below it unless the old
+floor is higher. `report` commits that, with any changed per-file run
+times in `.github/test-times.json`, as one records commit made with the
+`main-push` environment's `MASTER_PUSH_DEPLOY_KEY`. When main has moved
+past the measured commit nothing is pushed, and the next push records
+again.
 
 The comment-share records are committed by the comment-share job itself.
 It runs the comment-ratchet README install block, so a pull request may
