@@ -2,12 +2,16 @@ name: tests
 
 # Linux-only checks cannot establish macOS portability. Both POSIX legs
 # run the same real-subprocess behavioral suite against disposable git
-# repositories, and coverage is measured on the ubuntu cell only.
+# repositories through Nitjsefnie-Actions/test-ratchet: `plan` splits the
+# test files into shards, `run` runs one shard with coverage measured on
+# every cell, and `report` gates the ubuntu cell's merged coverage against
+# the floor in .github/ci-thresholds.json.
 # The action itself imports the standard library and nothing else; the
-# suite does not: it needs pytest, PyYAML, coverage (measured cell),
-# all from the hash-pinned .github/workflows/requirements-test.txt,
-# into the interpreter actions/setup-python provides (see the Install
-# the regression toolchain step).
+# suite does not: it needs pytest and PyYAML from the hash-pinned
+# .github/workflows/requirements-test.txt, into the interpreter
+# actions/setup-python provides (see the Install the regression toolchain
+# step), and `run` installs its own pinned pytest and coverage toolchain
+# into that interpreter.
 
 on:
   push:
@@ -118,11 +122,29 @@ jobs:
         # never start the scan.
         run: ./gitleaks detect --verbose --redact
 
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: plan
+        uses: Nitjsefnie-Actions/test-ratchet/plan@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
+        with:
+          tests: tests/**/test_*.py
+          times: .github/test-times.json
+          shards: 2
+
   suites:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        shard: ${{ fromJSON(needs.plan.outputs.matrix).shard }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
 
@@ -189,182 +211,39 @@ jobs:
         run: |
           python3 -m pip install --require-hashes --only-binary=:all: --no-binary=PyYAML -r .github/workflows/requirements-test.txt
 
-      # The measured cell writes coverage's startup hook into the site
-      # directory of that same interpreter, the one the suite and its
-      # subprocesses run, and arms the two env vars the rest of the job
-      # inherits through GITHUB_ENV. run.py runs as a SUBPROCESS of the
-      # suite, so `coverage run` around pytest would measure none of it: the
-      # hook starts the measurer inside every python3 the suite starts. On
-      # the other cell the step is skipped and the suite runs unmeasured.
-      - name: Install the coverage hook
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          site_dir="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
-          printf 'import coverage; coverage.process_startup()\n' > "$site_dir/00-size-ratchet-coverage-subprocess.pth"
-          mkdir -p "$RUNNER_TEMP/size-ratchet-coverage"
-          {
-            echo "COVERAGE_PROCESS_START=$PWD/.coveragerc"
-            echo "COVERAGE_FILE=$RUNNER_TEMP/size-ratchet-coverage/.coverage"
-          } >> "$GITHUB_ENV"
-
-      - name: Run the behavioral suite
-        run: tests/run.sh
-
-      # The suite's python3 processes each wrote their own data file (parallel
-      # mode in .coveragerc), so they are combined before anything reads a
-      # total; the summary renders whether or not the gate fails. Every
-      # coverage command names its config with --rcfile so the steps do not
-      # lean on coverage's working-directory discovery.
-      - name: Record the coverage summary
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          python3 -m coverage combine --rcfile=.coveragerc
-          python3 -m coverage report --format=markdown --precision=1 --rcfile=.coveragerc >> "$GITHUB_STEP_SUMMARY"
-
-      # The floor is read from the committed file rather than restated here, so
-      # a floor change is a diff to the file a reviewer sees, not a buried
-      # literal in the step.
-      - name: Coverage gate
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          floor="$(python3 -c 'import json; print(json.load(open(".github/ci-thresholds.json"))["coverage"]["python"]["floor"])')"
-          python3 -m coverage report --fail-under="$floor" --precision=1 --rcfile=.coveragerc
-
-      # The XML form of the same measurement the summary and the gate just
-      # read: the pull-request-only diff-coverage job cannot re-run the suite
-      # to make one, so the measured cell ships it. Both steps are gated to
-      # this one leg: a run's artifact names are one namespace shared by every
-      # job in it, and this matrix has exactly one uploading leg, so the
-      # `coverage-xml` name names one measurement by construction.
-      - name: Write the coverage XML
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 -m coverage xml --rcfile=.coveragerc -o coverage.xml
-
-      - name: Upload the coverage XML
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      # The cell is the OS alone, as the floor's record names it: Python is
+      # one minor on both legs.
+      - uses: Nitjsefnie-Actions/test-ratchet/run@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
         with:
-          name: coverage-xml
-          path: coverage.xml
-          if-no-files-found: error
+          runner: pytest
+          tests: tests/**/test_*.py
+          times: .github/test-times.json
+          cell: ${{ matrix.os }}
+          shard: ${{ matrix.shard }}
 
-      # Stage ratchet data from main pushes only: a PR run measures the
-      # merge tree, which main will never hold, and ratchet-push's own if:
-      # ignores PR runs anyway. Exactly one leg uploads, so
-      # ci-thresholds-ratchet names one measurement just as coverage-xml
-      # does above.
-      - name: Record the thresholds ratchet data
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
-        run: |
-          measured="$(python3 -m coverage report --format=total --precision=1 --rcfile=.coveragerc)"
-          python3 .github/scripts/ratchet_thresholds.py --measured "$measured" \
-            --thresholds .github/ci-thresholds.json \
-            --out-dir "$RUNNER_TEMP/ratchet-data"
-          # Absence IS the no-raise signal. Every refusal exits nonzero,
-          # so no artifact can mean only that no raise was justified,
-          # never that the script failed quietly. The base goes beside the
-          # staged data only, so a no-op cannot create an artifact.
-          if [ -f "$RUNNER_TEMP/ratchet-data/ci-thresholds.json" ]; then
-            git rev-parse HEAD > "$RUNNER_TEMP/ratchet-data/base.txt"
-          fi
-
-      - name: Upload the thresholds ratchet data
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ci-thresholds-ratchet
-          path: ${{ runner.temp }}/ratchet-data
-          if-no-files-found: ignore
-          retention-days: 1
-
-  # The per-change half of the coverage story: of the lines this pull
-  # request ADDED that coverage considers executable, how many the suite
-  # reached. INFORMATIONAL, never a gate -- the tree-wide floor in the
-  # Coverage gate step is the gate, and a number a reviewer judges (a refactor
-  # that moves code, a change that only deletes) must not be able to block a
-  # merge, which is also why this job is deliberately absent from no required
-  # context and fails nothing below it.
-  #
-  # Pull requests only, and only when the suite actually measured: a skipped
-  # or failed ancestor must not be reported as a number.
-  diff-coverage:
+  report:
     needs: suites
-    if: ${{ !cancelled() && needs.suites.result == 'success' && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    # This job checks out and runs code from the pull request (the script
-    # below is the pull request's own copy), so it must not carry a token
-    # that can write conversation. The trusted coverage-comment workflow
-    # owns that token.
+    # On a main push the records commit is pushed with the main-push
+    # environment's deploy key, as the size-baseline job's is.
+    environment: ${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch && format('{0}-push', github.event.repository.default_branch) || '' }}
     permissions:
       contents: read
-
+      pull-requests: write
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The merge commit the event named -- the exact SHA the suites job
-          # measured -- and not `refs/pull/N/merge` resolved now, which could
-          # hand this job a different tree than the one the report describes
-          # if GitHub recomputed the merge ref between the two jobs. Full
-          # history, because the diff below needs HEAD^1, the base tip that
-          # was merged into it.
-          ref: ${{ github.sha }}
           fetch-depth: 0
-          # Nothing in this job pushes, so no token is left in .git/config
-          # for a later step to reuse.
           persist-credentials: false
-
-      - name: Download the coverage XML
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: Nitjsefnie-Actions/test-ratchet/report@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
         with:
-          name: coverage-xml
-
-      # The statement analyzer the script drives is coverage.py, which no
-      # image preinstalls and a PEP 668 system python refuses to take, so the
-      # coverage block alone is lifted out of the hash-pinned
-      # .github/workflows/requirements-test.txt into a venv. No startup hook
-      # and no COVERAGE_PROCESS_START here -- no suite runs in this job, so there is
-      # nothing to measure, only a report to read.
-      # The venv's bin goes on PATH through GITHUB_PATH, which the runner
-      # puts ahead of every other PATH entry for the later steps; a
-      # GITHUB_ENV `PATH=` write would sit behind any GITHUB_PATH entry.
-      - name: Install coverage tooling
-        run: |
-          python3 -m venv "$RUNNER_TEMP/coverage-venv"
-          awk '/^coverage==/{f=1} f{print; if ($0 !~ /\\$/) exit}' .github/workflows/requirements-test.txt > "$RUNNER_TEMP/coverage.txt"
-          "$RUNNER_TEMP/coverage-venv/bin/python" -m pip install --require-hashes -r "$RUNNER_TEMP/coverage.txt"
-          echo "$RUNNER_TEMP/coverage-venv/bin" >> "$GITHUB_PATH"
-
-      - name: Measure the coverage of this change
-        # HEAD is the merge tree checked out above and HEAD^1 is, by
-        # construction, the base tip that was merged into it. The event
-        # payload's `base.sha` is NOT that: the base branch can advance
-        # between the event and the checkout, and every base commit merged in
-        # since would then be reported as a line this pull request added.
-        run: |
-          git diff --text --no-ext-diff --no-textconv --unified=0 HEAD^1 HEAD > patch.diff
-          python3 .github/scripts/diff_coverage.py \
-            --coverage coverage.xml \
-            --diff patch.diff > body.md
-          cat body.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Package the comment for the trusted commenter
-        # Through env, never interpolation: the number is event data, and a
-        # run: block that inlined it would be program text built from input.
-        env:
-          SIZE_RATCHET_PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          printf '%s\n' "$SIZE_RATCHET_PR_NUMBER" > pr-number.txt
-
-      - name: Upload the comment for the trusted commenter
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: diff-coverage-comment
-          path: |
-            body.md
-            pr-number.txt
-          if-no-files-found: error
+          github-token: ${{ github.token }}
+          cell: ubuntu-latest
+          times: .github/test-times.json
+          push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
 
   size-baseline:
     # The README install block, with this repository pinned to its own
@@ -408,7 +287,7 @@ jobs:
     # cancelled ancestor. This tree has no classification skips, so every
     # skipped, failed, cancelled or missing leg must fold red.
     # actionlint reports independently; needs can only name this workflow's legs.
-    needs: [suites, shellcheck, size-baseline]
+    needs: [plan, suites, report, shellcheck, size-baseline]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
