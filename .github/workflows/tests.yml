@@ -134,7 +134,7 @@ jobs:
         with:
           persist-credentials: false
       - id: plan
-        uses: Nitjsefnie-Actions/test-ratchet/plan@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
+        uses: Nitjsefnie-Actions/test-ratchet/plan@8232cb0d4e54c8ea66f9f96e1bbf398ce7e1e45f # v1.0.1
         with:
           tests: tests/**/test_*.py
           times: .github/test-times.json
@@ -215,7 +215,7 @@ jobs:
 
       # The cell is the OS alone, as the floor's record names it: Python is
       # one minor on both legs.
-      - uses: Nitjsefnie-Actions/test-ratchet/run@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
+      - uses: Nitjsefnie-Actions/test-ratchet/run@8232cb0d4e54c8ea66f9f96e1bbf398ce7e1e45f # v1.0.1
         with:
           runner: pytest
           tests: tests/**/test_*.py
@@ -240,7 +240,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/test-ratchet/report@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
+      - uses: Nitjsefnie-Actions/test-ratchet/report@8232cb0d4e54c8ea66f9f96e1bbf398ce7e1e45f # v1.0.1
         with:
           github-token: ${{ github.token }}
           cell: ubuntu-latest
