@@ -2,7 +2,7 @@
 """Require the head being checked out to carry every commit main holds that
 touches a file the REQUIRED status checks read as a parameter.
 
-The `main requires green checks` ruleset sets
+The `require-ci-aggregate` ruleset sets
 strict_required_status_checks_policy to false, so a pull request merges on a
 green head whose checks ran against a main that had not yet moved. Nothing
 compared the two, so a commit that lands on main changing a file a required
@@ -56,20 +56,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The required status contexts. Hand-held, and only here: a ruleset is
+# The walked jobs. Hand-held, and only here: a ruleset is
 # repository configuration, not a file, so nothing under .github/workflows can
 # be asked which jobs it makes required. Each name is still looked up in the
 # workflows below, and a name with no job behind it is a refusal rather than a
 # silently smaller set.
 #
-# The ruleset requires `actionlint` and the `aggregate` check; the aggregate
-# folds `shellcheck` and `suites`, so the files those legs read are walked
-# here too — a stale green on a leg folds into the aggregate, which is the
-# hazard this check exists for. `size-baseline` is deliberately absent: its
-# step runs the local action with `uses: ./`, whose files are the whole
-# tracked tree, and walking it would make every commit a freshness question
-# — strict_required_status_checks_policy reached through the back door,
-# against a ruleset the maintainer set to false on purpose.
+# The ruleset requires `aggregate` and `gate`; the aggregate folds `shellcheck`
+# and `suites`, so the files those legs read are walked here — a stale
+# green on a leg folds into the aggregate, which is the hazard this check
+# exists for. `actionlint` is walked though unfolded. `size-baseline` is
+# deliberately absent: its step runs the local action with `uses: ./`, whose
+# files are the whole tracked tree, and walking it makes every commit a
+# freshness question — strict_required_status_checks_policy reached through
+# the back door, against a ruleset the maintainer set to false on purpose.
 REQUIRED_JOBS = ("actionlint", "aggregate", "shellcheck", "suites")
 
 # The branch a required check's head is compared against. Not configurable:
