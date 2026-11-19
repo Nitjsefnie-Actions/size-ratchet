@@ -51,18 +51,19 @@ jobs:
           persist-credentials: false
 
       - name: Require this head to carry main's gate-defining commits
-        # `main requires green checks` sets strict_required_status_checks_policy
-        # to false, so a green head vouches only for the tree this run checked
+        # The `require-ci-aggregate` ruleset sets
+        # strict_required_status_checks_policy to false, so a green head
+        # vouches only for the tree this run checked
         # out: a commit that lands on main touching a file a required check
         # reads is never applied to a pull request before it merges, and the
         # merge then publishes a tree no green run ever saw. This is the only
         # check that compares the two.
         #
-        # In a job that is ALREADY a required status context, because a new job
-        # would be a new context — which means editing the ruleset — and a
-        # `paths:` filter on any workflow with a required job would stop this
-        # reporting at all and block every pull request instead (see the same
-        # trap documented on actionlint.yml's pull_request trigger).
+        # In a job the required `aggregate` already folds, because a new job
+        # reaches the ruleset only once it is added to the aggregate's `needs`,
+        # and a `paths:` filter on a workflow whose job the aggregate folds
+        # would stop this reporting at all and block every pull request
+        # instead.
         #
         # Before the lint step: work done against a base main has already moved
         # on from is work whose verdict does not carry.
@@ -72,9 +73,10 @@ jobs:
       - name: Refuse a commit whose scope names a workflow outside the ci type
         # CONTRIBUTING.md's scope table allows a workflow's name as a scope
         # only with type `ci`, and prose no gate reads is a convention. In this
-        # job rather than a new one: a new job would be a new required status
-        # context, which means editing the ruleset, and a job that is already
-        # required is where the freshness step went for the same reason.
+        # job rather than a new one: a new job reaches the ruleset only once it
+        # is added to the required `aggregate`'s `needs`, and a job the
+        # aggregate already folds is where the freshness step went for the
+        # same reason.
         # After the freshness step: both compare the head against freshly
         # fetched main, and both must read the rebased head.
         run: python3 tests/commit_scopes.py
@@ -112,11 +114,11 @@ jobs:
         # No --config and no .gitleaks.toml: the default ruleset ran clean
         # against this repository's full history, so an allowlist here would
         # be a way to silence a future finding nobody reviewed.
-        # In this job rather than a new one: `shellcheck` is already a
-        # required status context running on every pull request and every
+        # In this job rather than a new one: `shellcheck` is folded into the
+        # required `aggregate` and runs on every pull request and every
         # push to main, both unfiltered, so the scan gates exactly the commits
-        # a standalone scan job would — a new job would be a new required
-        # context, which means editing the ruleset, and actionlint is
+        # a standalone scan job would — a new job reaches the ruleset only
+        # once it is added to the aggregate's `needs`, and actionlint is
         # disqualified as the host because its push trigger is paths:-filtered
         # to workflow files, so a secret committed to run.py on main would
         # never start the scan.
