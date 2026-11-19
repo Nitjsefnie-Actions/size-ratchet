@@ -3,10 +3,6 @@
     851,
     1267
   ],
-  ".github/scripts/diff_coverage.py": [
-    4703,
-    11595
-  ],
   ".github/workflows/actionlint.yml": [
     3472,
     5512
@@ -19,17 +15,9 @@
     1822,
     2723
   ],
-  ".github/workflows/coverage-comment.yml": [
-    3309,
-    9951
-  ],
   ".github/workflows/pr-gate.yml": [
     427,
     1095
-  ],
-  ".github/workflows/ratchet-push.yml": [
-    3594,
-    10140
   ],
   ".github/workflows/scorecard.yml": [
     593,
@@ -40,8 +28,8 @@
     2863
   ],
   ".github/workflows/tests.yml": [
-    9738,
-    16265
+    6687,
+    11213
   ],
   "run.py": [
     675,
