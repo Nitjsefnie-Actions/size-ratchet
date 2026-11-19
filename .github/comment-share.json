@@ -4,8 +4,8 @@
     1267
   ],
   ".github/workflows/actionlint.yml": [
-    3472,
-    5512
+    3338,
+    5378
   ],
   ".github/workflows/audit.yml": [
     3428,
@@ -28,8 +28,8 @@
     2863
   ],
   ".github/workflows/tests.yml": [
-    6687,
-    11213
+    6662,
+    11188
   ],
   "run.py": [
     675,
@@ -56,8 +56,8 @@
     12482
   ],
   "tests/gate_base_freshness.py": [
-    11578,
-    21218
+    11577,
+    21217
   ],
   "tests/run.sh": [
     18,
