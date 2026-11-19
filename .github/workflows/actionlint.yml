@@ -41,12 +41,12 @@ on:
     # via the generated workflow), so none of those belongs in a skip list.
     # The five names below are documentation nothing in this job reads.
     paths-ignore: [README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
-  # Deliberately unfiltered by path. This job is a REQUIRED status check on
-  # main, and GitHub never reports a required check whose workflow did not
-  # run -- it waits for it forever. A path filter here therefore does not
-  # skip the check on a documentation-only pull request, it blocks that pull
-  # request from ever merging. The job is seconds long, so running it on
-  # every pull request is cheaper than the failure mode it removes.
+  # Deliberately unfiltered by path. This job is not a required check,
+  # but GitHub never reports a required check whose workflow did not run --
+  # it waits for it forever. Were it required, a path filter here does not
+  # skip the check on a documentation-only pull request, it blocks that
+  # pull request from ever merging. The job is seconds long, so running it
+  # on every pull request is cheaper than the failure mode it removes.
   pull_request:
   workflow_dispatch:
 
