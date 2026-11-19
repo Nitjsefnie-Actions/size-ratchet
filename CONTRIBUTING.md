@@ -115,7 +115,7 @@ is rewritten when a test file was added or removed, or its seconds moved
 by more than 25% and more than 1.0 s. A pull request changes neither file.
 
 When a value changed, both files are committed as one commit,
-`chore(ratchet): update the test-ratchet records (automated)`, on top of
+`chore(ratchet): update the test-ratchet records`, on top of
 the measured commit and pushed as a fast-forward with the `main-push`
 environment's `MASTER_PUSH_DEPLOY_KEY`. When main has moved past the
 measured commit, nothing is pushed and the next push records again; a

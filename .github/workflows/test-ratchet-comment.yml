@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Nitjsefnie-Actions/test-ratchet/report@ad6505d6da67b129dddbecb326f03d19e834c74c # v1.0.0
+      - uses: Nitjsefnie-Actions/test-ratchet/report@8232cb0d4e54c8ea66f9f96e1bbf398ce7e1e45f # v1.0.1
         with:
           github-token: ${{ github.token }}
           cell: ubuntu-latest
