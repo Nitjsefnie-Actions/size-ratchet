@@ -1,35 +1,92 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "cells": {
     "macos-latest": {
-      "tests/test_action.py": 2.55,
-      "tests/test_aggregate.py": 1.31,
-      "tests/test_called_block.py": 7.25,
-      "tests/test_check_seed.py": 8.25,
-      "tests/test_cli.py": 29.76,
-      "tests/test_gate.py": 1.43,
-      "tests/test_install_block.py": 13.73,
-      "tests/test_policy.py": 2.56,
-      "tests/test_push.py": 13.73,
-      "tests/test_records.py": 1.01,
-      "tests/test_trees.py": 10.11,
-      "tests/test_trees_check.py": 45.75,
-      "tests/test_trees_push.py": 25.35
+      "tests/test_action.py": [
+        2.55
+      ],
+      "tests/test_aggregate.py": [
+        1.31
+      ],
+      "tests/test_called_block.py": [
+        7.25
+      ],
+      "tests/test_check_seed.py": [
+        8.25
+      ],
+      "tests/test_cli.py": [
+        29.76
+      ],
+      "tests/test_gate.py": [
+        1.43
+      ],
+      "tests/test_install_block.py": [
+        13.73
+      ],
+      "tests/test_policy.py": [
+        2.56
+      ],
+      "tests/test_push.py": [
+        13.73
+      ],
+      "tests/test_records.py": [
+        1.01
+      ],
+      "tests/test_trees.py": [
+        10.11
+      ],
+      "tests/test_trees_check.py": [
+        45.75,
+        31.15
+      ],
+      "tests/test_trees_push.py": [
+        25.35
+      ]
     },
     "ubuntu-latest": {
-      "tests/test_action.py": 1.28,
-      "tests/test_aggregate.py": 0.97,
-      "tests/test_called_block.py": 2.93,
-      "tests/test_check_seed.py": 3.51,
-      "tests/test_cli.py": 14.6,
-      "tests/test_gate.py": 0.21,
-      "tests/test_install_block.py": 5.83,
-      "tests/test_policy.py": 0.88,
-      "tests/test_push.py": 6.15,
-      "tests/test_records.py": 0.36,
-      "tests/test_trees.py": 7.16,
-      "tests/test_trees_check.py": 11.64,
-      "tests/test_trees_push.py": 12.94
+      "tests/test_action.py": [
+        1.28
+      ],
+      "tests/test_aggregate.py": [
+        0.97
+      ],
+      "tests/test_called_block.py": [
+        2.93,
+        4.82
+      ],
+      "tests/test_check_seed.py": [
+        3.51
+      ],
+      "tests/test_cli.py": [
+        14.6
+      ],
+      "tests/test_gate.py": [
+        0.21
+      ],
+      "tests/test_install_block.py": [
+        5.83,
+        9.37
+      ],
+      "tests/test_policy.py": [
+        0.88
+      ],
+      "tests/test_push.py": [
+        6.15,
+        9.01
+      ],
+      "tests/test_records.py": [
+        0.36
+      ],
+      "tests/test_trees.py": [
+        7.16
+      ],
+      "tests/test_trees_check.py": [
+        11.64,
+        19.16
+      ],
+      "tests/test_trees_push.py": [
+        12.94
+      ]
     }
   }
 }
