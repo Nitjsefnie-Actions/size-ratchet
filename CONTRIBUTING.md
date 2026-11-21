@@ -111,8 +111,8 @@ all passed and cover every shard of every cell: when the coverage exceeds
 the recorded `measured` by more than the hysteresis (1.5 points),
 `measured` becomes the figure and the floor becomes the figure minus the
 gap (1.5 points), unless the old floor is higher. `.github/test-times.json`
-is rewritten when a test file was added or removed, or its seconds moved
-by more than 25% and more than 1.0 s. A pull request changes neither file.
+holds the per-file test times `report` keeps. A pull request changes
+neither file.
 
 When a value changed, both files are committed as one commit,
 `chore(ratchet): update the test-ratchet records`, on top of
