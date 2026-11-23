@@ -30,7 +30,8 @@ GROWTH_REMEDY = (
     'hand: relocate the code into a new file, or shrink the file.')
 LOWER_REMEDY = (
     'Lower each entry shown with a required number to it, and drop each '
-    'shown with only a recorded number: that is what tighten writes.')
+    'shown with only a recorded number: that is what tighten writes from '
+    'the base records.')
 RESTORE_REMEDY = (
     'Putting back what this pull request dropped or lowered raises nothing '
     'by hand: restore each number shown, or exclude the file or shrink it '
