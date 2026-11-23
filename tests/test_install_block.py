@@ -191,6 +191,7 @@ def test_a_pull_request_shrink_passes_under_the_block_defaults(tmp_path):
     done = pull_request(repo, base)
     assert done.returncode == 1
     assert 'src/x.py: 601 lines above its record of 600' in done.stderr
+    assert 'lowers below' not in done.stderr
 
 
 def test_a_pull_request_shrink_must_carry_the_record(tmp_path):
@@ -373,6 +374,11 @@ def test_a_pr_that_unmeasures_or_graduates_the_file_must_drop_its_entry(
     done = pull_request(repo, base, require_tight=tight, **inputs)
     if tight == 'false':
         assert done.returncode == 0, done.stderr
+        # So does dropping the entry, or an excluded file's kept below it.
+        for kept in [{}, {'src/x.py': 500}] if change == 'exclude' else [{}]:
+            put_records(repo, kept)
+            done = pull_request(repo, base, require_tight=tight, **inputs)
+            assert done.returncode == 0, done.stderr
         return
     assert done.returncode == 1
     assert '- src/x.py: recorded 600' in done.stderr
@@ -418,18 +424,24 @@ def test_a_grown_unrecorded_file_cannot_record_itself(tmp_path):
     assert '- src/y.py: recorded 900' in done.stderr
 
 
+RAISED = ('raises over the base (keep each at or below its base record; drop '
+          'an entry the base lacks), beside what tighten writes:\n    ')
+LOWERED = ('lowers below both its base record and its file, or drops while '
+           'tighten keeps it, beside what tighten writes:\n    ')
 RAISES = [
-    ({'f.py': 600}, {'f.py': 600}, {}, {'f.py': 900},
-     '~ f.py: required 600, recorded 900'),
-    ({'f.py': 600, 'h.py': 300}, {'f.py': 600}, {}, {'f.py': 600, 'h.py': 900},
-     '- h.py: recorded 900'),
-    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 601},
-     '- f.py: recorded 601'),
+    ({'f.py': 600}, {'f.py': 600}, {}, {'f.py': 900}, RAISED + '~ f.py: required 600, recorded 900'),
+    ({'f.py': 600, 'h.py': 300}, {'f.py': 600}, {}, {'f.py': 600, 'h.py': 900}, RAISED + '- h.py: recorded 900'),
+    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 601}, RAISED + '- f.py: recorded 601'),
     ({'f.py': 600}, {}, {}, {'f.py': 600}, None),
     ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 900}, None),
     ({'f.py': 600}, {'f.py': 900}, {'f.py': 550}, {'f.py': 900}, None),
     ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 700}, None),
     ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, None, None),
+    ({'f.py': 900}, {'f.py': 900}, {}, {'f.py': 500}, LOWERED + '~ f.py: required 900, recorded 500'),
+    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 300}, LOWERED + '- f.py: recorded 300'),
+    ({'f.py': 900}, {'f.py': 950}, {}, {'f.py': 900}, None),
+    ({'f.py': 900}, {'f.py': 900}, {}, {}, LOWERED + '+ f.py: record 900'),
+    ({'f.txt': 9}, {'f.txt': 9}, {}, {}, LOWERED + '+ f.txt: record 9'),
 ]
 
 
@@ -437,8 +449,10 @@ RAISES = [
                          RAISES, ids=[
                              'raised', 'added', 'raised-graduated', 'seed',
                              'loose-on-base', 'shrunk-kept', 'lowered-partway',
-                             'records-file-dropped'])
-def test_require_tight_false_refuses_a_record_raised_over_the_base(
+                             'records-file-dropped', 'lowered-below-file',
+                             'lowered-below-graduated', 'lowered-to-file',
+                             'dropped-over-ceiling', 'dropped-untyped'])
+def test_require_tight_false_refuses_a_record_raised_or_lowered_past_its_bounds(
         tmp_path, base_counts, base_map, head_counts, head_map, line):
     repo = make_repo(tmp_path, {p: 'x\n' * n for p, n in base_counts.items()})
     base = put_records(repo, base_map)
@@ -451,6 +465,4 @@ def test_require_tight_false_refuses_a_record_raised_over_the_base(
     done = pull_request(repo, base, require_tight='false')
     assert done.returncode == int(line is not None), done.stderr
     if line:
-        assert ('raises over the base (keep each at or below its base '
-                'record; drop an entry the base lacks), beside what tighten '
-                f'writes:\n    {line}\n') in done.stderr
+        assert line + '\n' in done.stderr

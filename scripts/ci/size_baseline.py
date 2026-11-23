@@ -328,20 +328,29 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
             if path in touched
             and head_entries.get(path, _MISSING) != required.get(path, _MISSING)
         }
-        header = ('require-tight: entries this pull request changes must be '
-                  'tight, and these are not:')
+        groups = [('require-tight: entries this pull request changes must '
+                   'be tight, and these are not:', scoped)]
     else:
-        # A raised or added entry binds every later pull request.
-        scoped = {path for path, count in head_entries.items()
-                  if path not in seed_adds
-                  and (path not in base_map or count > base_map[path])}
-        header = ('records this pull request raises over the base (keep '
-                  'each at or below its base record; drop an entry the base '
-                  'lacks), beside what tighten writes:')
-    if scoped:
-        failures.append(header)
-        failures.extend('  ' + line for line in
-                        _diff_report_subset(required, head_entries, scoped))
+        # A raised or added entry binds every later pull request, and so
+        # does one lowered below its file or dropped while tighten keeps it.
+        groups = [('records this pull request raises over the base (keep '
+                   'each at or below its base record; drop an entry the base '
+                   'lacks), beside what tighten writes:',
+                   {path for path, count in head_entries.items()
+                    if path not in seed_adds
+                    and (path not in base_map or count > base_map[path])}),
+                  ('records this pull request lowers below both its base '
+                   'record and its file, or drops while tighten keeps it, '
+                   'beside what tighten writes:',
+                   (set(required) - set(head_entries))
+                   | {path for path, count in head_entries.items()
+                      if path in base_map and path in sizes
+                      and count < min(base_map[path], sizes[path])})]
+    for header, scoped in groups:
+        if scoped:
+            failures.append(header)
+            failures.extend('  ' + line for line in
+                            _diff_report_subset(required, head_entries, scoped))
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
