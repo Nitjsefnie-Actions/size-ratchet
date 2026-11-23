@@ -233,6 +233,7 @@ def test_a_head_that_drops_an_untyped_record_cannot_escape_it(tmp_path):
     done = run_gate(repo, 'check', base_ref=base)
     assert done.returncode == 1, done.stdout
     assert 'Makefile: 950 lines above its record of 900' in done.stderr
+    assert 'never raised by hand' in done.stderr and 'raises nothing' in done.stderr
 
 
 def test_the_seed_paths_unclassified_check_fails(tmp_path):
