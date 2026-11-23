@@ -309,8 +309,12 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         else:
             print(f'::notice::{path}: stale ({STALE_REASONS[state[0]]}); '
                   f'{_stale_detail(state[1])}')
+    head_entries = head_map or {}
+    required = tightened(base_map, sizes, policy)
+    required = dict(base_map) if required is None else dict(required)
+    for path in seed_adds:
+        required[path] = head_entries[path]
     if require_tight:
-        head_entries = head_map or {}
         base_sizes = measure(root, list_tree(root, base_ref), policy,
                              base_map, records_path)
         touched = _changed_entries(base_sizes, sizes, base_map, head_entries)
@@ -319,21 +323,24 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         touched |= {path for path, state in
                     record_states(sizes, base_map, policy).items()
                     if state[0] == 'excluded'}
-        required = tightened(base_map, sizes, policy)
-        required = dict(base_map) if required is None else dict(required)
-        for path in seed_adds:
-            required[path] = head_entries[path]
         scoped = {
             path for path in set(required) | set(head_entries)
             if path in touched
             and head_entries.get(path, _MISSING) != required.get(path, _MISSING)
         }
-        if scoped:
-            failures.append('require-tight: entries this pull request '
-                            'changes must be tight, and these are not:')
-            failures.extend('  ' + line for line in
-                            _diff_report_subset(required, head_entries,
-                                                scoped))
+        header = ('require-tight: entries this pull request changes must be '
+                  'tight, and these are not:')
+    else:
+        # A raised or added entry binds every later pull request.
+        scoped = {path for path, count in head_entries.items()
+                  if path not in seed_adds
+                  and (path not in base_map or count > base_map[path])}
+        header = ('records this pull request raises over the base must be '
+                  'what tighten writes, and these are not:')
+    if scoped:
+        failures.append(header)
+        failures.extend('  ' + line for line in
+                        _diff_report_subset(required, head_entries, scoped))
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
