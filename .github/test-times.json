@@ -3,7 +3,8 @@
   "cells": {
     "macos-latest": {
       "tests/test_action.py": [
-        2.55
+        2.55,
+        3.99
       ],
       "tests/test_aggregate.py": [
         1.31
@@ -12,7 +13,8 @@
         7.25
       ],
       "tests/test_check_seed.py": [
-        8.25
+        8.25,
+        10.97
       ],
       "tests/test_cli.py": [
         29.76
@@ -22,10 +24,12 @@
       ],
       "tests/test_install_block.py": [
         13.73,
-        22.78
+        22.78,
+        35.47
       ],
       "tests/test_policy.py": [
-        2.56
+        2.56,
+        3.68
       ],
       "tests/test_push.py": [
         13.73
@@ -34,7 +38,8 @@
         1.01
       ],
       "tests/test_trees.py": [
-        10.11
+        10.11,
+        13.16
       ],
       "tests/test_trees_check.py": [
         45.75,
@@ -68,7 +73,8 @@
       "tests/test_install_block.py": [
         5.83,
         9.37,
-        11.83
+        11.83,
+        15.01
       ],
       "tests/test_policy.py": [
         0.88
