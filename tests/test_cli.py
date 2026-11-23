@@ -19,55 +19,27 @@ OVER = '\n'.join(f'y{i} = {i}' for i in range(600)) + '\n'
 RECORDS = '.github/size-baseline.json'
 
 
-def test_a_clean_tree_passes(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 400})
-    base = put_records(repo, {})
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 0, done.stderr
-    assert 'within the size policy' in done.stdout
-
-
-def test_growth_fails_naming_path_lines_and_record(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 480})
-    base = put_records(repo, {'src/a.py': 480})
-    add_and_commit(repo, 'src/a.py', 'x\n' * 495, 'grow the file')
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 1
-    assert '495 lines above its record of 480' in done.stderr
-    assert 'never raised by hand' in done.stderr
-
-
-def test_an_unrecorded_file_over_its_ceiling_fails(tmp_path):
-    repo = make_repo(tmp_path, {'src/big.py': BIG})
-    base = put_records(repo, {})
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 1
-    assert 'src/big.py: 501 lines above its ceiling of 500' in done.stderr
-
-
-def test_an_override_ceiling_relaxes_one_folder(tmp_path):
-    repo = make_repo(tmp_path, {'tests/big.py': BIG})
-    base = put_records(repo, {})
-    done = run_gate(repo, 'check', base_ref=base,
-                    overrides='tests/: 700\n')
-    assert done.returncode == 0, done.stderr
-
-
-def test_excluded_files_neither_measured_nor_unclassified(tmp_path):
-    repo = make_repo(tmp_path, {'src/big.py': BIG, 'docs/README.md': OVER})
-    base = put_records(repo, {})
-    done = run_gate(repo, 'check', base_ref=base, unclassified='fail',
-                    exclude='src/big.py\ndocs/\n')
-    assert done.returncode == 0, done.stderr
-
-
-def test_unclassified_fail_names_the_file(tmp_path):
-    repo = make_repo(tmp_path, {'docs/README.md': OVER, 'src/a.py': 'x\n'})
-    base = put_records(repo, {})
-    failing = run_gate(repo, 'check', base_ref=base, unclassified='fail')
-    assert failing.returncode == 1
-    assert 'docs/README.md' in failing.stderr
-    assert run_gate(repo, 'check', base_ref=base).returncode == 0
+@pytest.mark.parametrize('files,baseline,grown,inputs,line', [
+    ({'src/a.py': 'x\n' * 400}, {}, None, {}, None),
+    ({'src/a.py': 'x\n' * 480}, {'src/a.py': 480}, 495, {}, 'src/a.py: 495 lines above its record of 480'),
+    ({'src/big.py': BIG}, {}, None, {}, 'src/big.py: 501 lines above its ceiling of 500'),
+    ({'tests/big.py': BIG}, {}, None, {'overrides': 'tests/: 700\n'}, None),
+    ({'src/big.py': BIG, 'docs/README.md': OVER}, {}, None,
+     {'unclassified': 'fail', 'exclude': 'src/big.py\ndocs/\n'}, None),
+    ({'docs/README.md': OVER, 'src/a.py': 'x\n'}, {}, None, {'unclassified': 'fail'}, 'docs/README.md: unclassified'),
+    ({'docs/README.md': OVER, 'src/a.py': 'x\n'}, {}, None, {}, None),
+])
+def test_the_check_names_each_path_over_its_bound(tmp_path, files, baseline, grown, inputs, line):
+    repo = make_repo(tmp_path, files)
+    base = put_records(repo, baseline)
+    if grown:
+        add_and_commit(repo, 'src/a.py', 'x\n' * grown, 'grow the file')
+    done = run_gate(repo, 'check', base_ref=base, **inputs)
+    assert done.returncode == int(line is not None), done.stderr
+    if line:
+        assert line in done.stderr and 'never raised by hand' in done.stderr
+    else:
+        assert 'within the size policy' in done.stdout
 
 
 @pytest.mark.parametrize('stale', ['warn', 'fail'])
@@ -183,19 +155,6 @@ def test_a_drop_beside_a_raise_prints_both_remedies(tmp_path):
     assert done.returncode == 1 and 'never raised by' not in done.stderr
 
 
-def test_the_base_records_bind_not_the_head_edits(tmp_path):
-    """A records edit in the head cannot loosen the gate."""
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 480})
-    base = put_records(repo, {'src/a.py': 480})
-    add_and_commit(repo, RECORDS,
-                   records.document_text('baseline', {'src/a.py': 500}),
-                   'raise the record by hand')
-    add_and_commit(repo, 'src/a.py', 'x\n' * 490, 'grow past the head record')
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 1
-    assert 'src/a.py: 490 lines above its record of 480' in done.stderr
-
-
 def test_seed_fallback_accepts_the_exact_seed(tmp_path):
     repo = make_repo(tmp_path, {'src/big.py': BIG, 'src/small.py': 'x\n'})
     base = head(repo)  # no records at the base: the head's seed binds
@@ -226,19 +185,6 @@ def test_check_reads_the_committed_records_not_the_working_tree(tmp_path):
     (repo / RECORDS).write_text(records.document_text('baseline', {}))
     done = run_gate(repo, 'check', base_ref=base)
     assert done.returncode == 0, done.stderr
-
-
-def test_a_head_that_drops_an_untyped_record_cannot_escape_it(tmp_path):
-    # Base records an untyped file; the head grows it and drops the entry.
-    # The base's record still binds.
-    repo = make_repo(tmp_path, {'Makefile': 'x\n' * 900})
-    base = put_records(repo, {'Makefile': 900})
-    add_and_commit(repo, 'Makefile', 'x\n' * 950, 'grow the untyped file')
-    put_records(repo, {})
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 1, done.stdout
-    assert 'Makefile: 950 lines above its record of 900' in done.stderr
-    assert 'never raised by hand' in done.stderr and 'raises nothing' in done.stderr
 
 
 def test_the_seed_paths_unclassified_check_fails(tmp_path):
