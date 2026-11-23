@@ -182,6 +182,8 @@ def test_a_feature_raise_above_the_head_total_fails(tmp_path):
     assert done.returncode == 1
     assert ('tests/: record raised from 15 to 21, above the total 20; '
             'tighten writes 20') in done.stderr
+    strict = check(repo, base, require_tight='true')
+    assert 'record raised from' not in strict.stderr
 
 
 def raised_origin(tmp_path, subject):
