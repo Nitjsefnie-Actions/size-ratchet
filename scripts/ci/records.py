@@ -311,3 +311,24 @@ def validate_path(root: Path, records: str) -> None:
 def subprocess_run(argv):
     """One git call, captured; the caller reads the status it asked for."""
     return subprocess.run(argv, capture_output=True, timeout=300)
+
+
+def diff_report(required, actual):
+    """``+``/``-``/``~`` lines turning ``actual`` into ``required``."""
+    lines = []
+    for path in sorted(set(required) - set(actual)):
+        lines.append(f'+ {path}: record {required[path]}')
+    for path in sorted(set(actual) - set(required)):
+        lines.append(f'- {path}: recorded {actual[path]}')
+    for path in sorted(set(required) & set(actual)):
+        if required[path] != actual[path]:
+            lines.append(f'~ {path}: required {required[path]}, '
+                         f'recorded {actual[path]}')
+    return lines
+
+
+def diff_report_subset(required, actual, paths):
+    """diff_report restricted to ``paths``."""
+    keep = {f'{path}: ' for path in paths}
+    return [line for line in diff_report(required, actual)
+            if line[2:].startswith(tuple(keep))]

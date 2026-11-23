@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deliver
 import records
+from records import diff_report, diff_report_subset
 
 
 # Re-exported: the policy prices files by these, and callers reach them here.
@@ -218,19 +219,6 @@ def tightened(baseline, sizes, policy):
     return updated
 
 
-def diff_report(required, actual):
-    lines = []
-    for path in sorted(set(required) - set(actual)):
-        lines.append(f'+ {path}: record {required[path]}')
-    for path in sorted(set(actual) - set(required)):
-        lines.append(f'- {path}: recorded {actual[path]}')
-    for path in sorted(set(required) & set(actual)):
-        if required[path] != actual[path]:
-            lines.append(f'~ {path}: required {required[path]}, '
-                         f'recorded {actual[path]}')
-    return lines
-
-
 def run(root, records_path, member_input, mode, base_ref, policy,
         stale, require_tight, push_key_set=False, called=False, staged=None):
     """The gate over one checkout. Returns 0 or 1; raises on failure."""
@@ -350,7 +338,7 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         if scoped:
             failures.append(header)
             failures.extend('  ' + line for line in
-                            _diff_report_subset(required, head_entries, scoped))
+                            diff_report_subset(required, head_entries, scoped))
     if failures:
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
@@ -375,13 +363,6 @@ def _changed_entries(base_sizes, sizes, base_map, head_map):
 
 # Distinct from every count, even an empty file's 0.
 _MISSING = object()
-
-
-def _diff_report_subset(required, actual, paths):
-    """diff_report restricted to ``paths``."""
-    keep = {f'{path}: ' for path in paths}
-    return [line for line in diff_report(required, actual)
-            if line[2:].startswith(tuple(keep))]
 
 
 def _verify(root, records_path, member, entries, policy, head_map,
