@@ -174,6 +174,8 @@ def test_require_tight_names_a_missing_head_entry(tmp_path):
     done = run_gate(repo, 'check', base_ref=base, require_tight='true')
     assert done.returncode == 1
     assert '+ src/a.py: record 560' in done.stderr
+    assert 'raises nothing by hand: restore each number shown' in done.stderr
+    assert 'never raised by hand' not in done.stderr
 
 
 def test_the_base_records_bind_not_the_head_edits(tmp_path):
@@ -271,9 +273,11 @@ def test_tighten_seeds_over_ceiling_files(tmp_path):
     assert on_disk['schema_version'] == 1
 
 
-def test_tighten_with_nothing_to_change_writes_nothing(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 501})
-    put_records(repo, {'src/a.py': 501})
+@pytest.mark.parametrize('count,record', [(501, 501), (700, 600)])
+def test_tighten_with_nothing_to_lower_writes_nothing(tmp_path, count, record):
+    # An equal record has nothing to change; a grown one is never raised.
+    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * count})
+    put_records(repo, {'src/a.py': record})
     before = (repo / RECORDS).read_bytes()
     done = run_gate(repo, 'tighten')
     assert done.returncode == 0, done.stderr
@@ -291,16 +295,6 @@ def test_tighten_lowers_shrinks_and_drops_graduates(tmp_path):
     assert done.returncode == 0, done.stderr
     on_disk = json.loads((repo / RECORDS).read_text())
     assert on_disk['baseline'] == {'src/shrunk.py': 600, 'src/stays.py': 501}
-
-
-def test_tighten_never_raises(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 700})
-    put_records(repo, {'src/a.py': 600})
-    before = (repo / RECORDS).read_bytes()
-    done = run_gate(repo, 'tighten')
-    assert done.returncode == 0, done.stderr
-    assert (repo / RECORDS).read_bytes() == before
-    assert 'nothing to tighten' in done.stdout
 
 
 def test_tighten_with_a_member_keeps_other_keys_byte_for_byte(tmp_path):

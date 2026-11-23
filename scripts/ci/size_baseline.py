@@ -28,6 +28,10 @@ from config import DEFAULT_CEILING, TYPES, Policy, type_of  # noqa: E402,F401
 GROWTH_REMEDY = (
     'A recorded number is never raised by hand and no entry is added by '
     'hand: relocate the code into a new file, or shrink the file.')
+RESTORE_REMEDY = (
+    'Putting back what this pull request dropped or lowered raises nothing '
+    'by hand: restore each number shown, or shrink or exclude the file '
+    'until tighten writes what the head records.')
 SEED_REMEDY = (
     'Run the action in tighten mode on the proposed head and commit the '
     'records file it writes.')
@@ -334,7 +338,11 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
                    | {path for path, count in head_entries.items()
                       if path in base_map and path in sizes
                       and count < min(base_map[path], sizes[path])})]
+    growth, restores = bool(failures), set()
     for header, scoped in groups:
+        restores |= {path for path in scoped if head_entries.get(path, -1)
+                     < required.get(path, -1)}
+        growth = growth or bool(scoped - restores)
         if scoped:
             failures.append(header)
             failures.extend('  ' + line for line in
@@ -343,7 +351,9 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
             print(f'  {failure}', file=sys.stderr)
-        print(GROWTH_REMEDY, file=sys.stderr)
+        for remedy, due in ((GROWTH_REMEDY, growth), (RESTORE_REMEDY, restores)):
+            if due:
+                print(remedy, file=sys.stderr)
         return 1
     print(f'size-ratchet: {len(sizes)} measured files within the size policy')
     return 0
