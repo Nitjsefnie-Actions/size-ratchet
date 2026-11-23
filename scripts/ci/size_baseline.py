@@ -28,6 +28,9 @@ from config import DEFAULT_CEILING, TYPES, Policy, type_of  # noqa: E402,F401
 GROWTH_REMEDY = (
     'A recorded number is never raised by hand and no entry is added by '
     'hand: relocate the code into a new file, or shrink the file.')
+LOWER_REMEDY = (
+    'Lower each entry shown with a required number to it, and drop each '
+    'shown with only a recorded number: that is what tighten writes.')
 RESTORE_REMEDY = (
     'Putting back what this pull request dropped or lowered raises nothing '
     'by hand: restore each number shown, or exclude the file, or shrink '
@@ -339,11 +342,11 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
                    | {path for path, count in head_entries.items()
                       if path in base_map and path in sizes
                       and count < min(base_map[path], sizes[path])})]
-    growth, restores = bool(failures), set()
+    growth, restores, lowers = bool(failures), set(), set()
     for header, scoped in groups:
-        restores |= {path for path in scoped if head_entries.get(path, -1)
-                     < required.get(path, -1)}
-        growth = growth or bool(scoped - restores)
+        restore = {path for path in scoped if head_entries.get(path, -1)
+                   < required.get(path, -1)}
+        restores, lowers = restores | restore, lowers | (scoped - restore)
         if scoped:
             failures.append(header)
             failures.extend('  ' + line for line in
@@ -352,7 +355,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         print('size-ratchet: the size ratchet failed:', file=sys.stderr)
         for failure in failures:
             print(f'  {failure}', file=sys.stderr)
-        for remedy, due in ((GROWTH_REMEDY, growth), (RESTORE_REMEDY, restores)):
+        for remedy, due in ((GROWTH_REMEDY, growth), (LOWER_REMEDY, lowers),
+                            (RESTORE_REMEDY, restores)):
             if due:
                 print(remedy, file=sys.stderr)
         return 1

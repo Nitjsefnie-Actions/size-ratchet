@@ -411,6 +411,7 @@ def test_a_grown_unrecorded_file_cannot_record_itself(tmp_path):
     assert done.returncode == 1
     assert 'src/y.py: 900 lines above its ceiling of 500' in done.stderr
     assert '- src/y.py: recorded 900' in done.stderr
+    assert 'never raised by hand' in done.stderr and 'that is what tighten writes' in done.stderr
 
 
 RAISED = ('raises over the base (keep each at or below its base record; drop '
@@ -454,7 +455,7 @@ def test_require_tight_false_refuses_a_record_raised_or_lowered_past_its_bounds(
     assert done.returncode == int(line is not None), done.stderr
     if line:
         assert line + '\n' in done.stderr
-        # A dropped or lowered entry is put back; anything else is growth.
-        restores = line.startswith(LOWERED) and line[len(LOWERED)] in '+~'
+        restores = line.startswith(LOWERED) and line[len(LOWERED)] in '+~'  # else lower
         assert ('raises nothing by hand: restore' in done.stderr) is restores
-        assert ('never raised by hand' in done.stderr) is not restores
+        assert ('only a recorded number: that is what' in done.stderr) is not restores
+        assert 'never raised by hand' not in done.stderr
