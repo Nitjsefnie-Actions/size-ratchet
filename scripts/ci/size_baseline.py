@@ -335,9 +335,9 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         scoped = {path for path, count in head_entries.items()
                   if path not in seed_adds
                   and (path not in base_map or count > base_map[path])}
-        header = ('records this pull request raises over the base (any '
-                  'value at or below the base passes), beside what tighten '
-                  'writes:')
+        header = ('records this pull request raises over the base (keep '
+                  'each at or below its base record; drop an entry the base '
+                  'lacks), beside what tighten writes:')
     if scoped:
         failures.append(header)
         failures.extend('  ' + line for line in
