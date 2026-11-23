@@ -70,28 +70,21 @@ def test_unclassified_fail_names_the_file(tmp_path):
     assert run_gate(repo, 'check', base_ref=base).returncode == 0
 
 
-def test_stale_warn_prints_a_notice_and_passes(tmp_path):
+@pytest.mark.parametrize('stale', ['warn', 'fail'])
+def test_a_stale_record_is_a_notice_or_a_failure(tmp_path, stale):
     # The stale record sits on the base: the pull request is not the
     # shrinker, so scoped require-tight leaves the entry to the stale
-    # report and the run passes with the notice.
+    # report: a notice that passes, or under stale: fail a failure.
     # 550 stays over the ceiling, so the verdict is shrunk, not
     # graduated: a graduation without a count move is the ceiling-raise
     # shape pinned in test_install_block.
     repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 550})
     base = put_records(repo, {'src/a.py': 600})
     add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
-    done = run_gate(repo, 'check', base_ref=base)
-    assert done.returncode == 0, done.stderr
-    assert '::notice::src/a.py: stale' in done.stdout
-
-
-def test_stale_fail_fails(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n' * 550})
-    base = put_records(repo, {'src/a.py': 600})
-    add_and_commit(repo, 'src/b.py', 'y\n', 'touch another file')
-    done = run_gate(repo, 'check', base_ref=base, stale='fail')
-    assert done.returncode == 1
-    assert 'src/a.py: stale' in done.stderr
+    done = run_gate(repo, 'check', base_ref=base, stale=stale)
+    assert done.returncode == int(stale == 'fail'), done.stderr
+    stream, prefix = (done.stderr, '') if stale == 'fail' else (done.stdout, '::notice::')
+    assert prefix + 'src/a.py: stale' in stream
 
 
 def test_a_graduated_notice_names_the_record(tmp_path):
@@ -163,6 +156,7 @@ def test_require_tight_fails_naming_each_differing_entry(tmp_path):
     done = run_gate(repo, 'check', base_ref=base, require_tight='true')
     assert done.returncode == 1
     assert '~ src/a.py: required 560, recorded 600' in done.stderr
+    assert 'that is what tighten' in done.stderr and 'never raised by' not in done.stderr
 
 
 def test_require_tight_names_a_missing_head_entry(tmp_path):
@@ -176,6 +170,17 @@ def test_require_tight_names_a_missing_head_entry(tmp_path):
     assert '+ src/a.py: record 560' in done.stderr
     assert 'raises nothing by hand: restore each number shown' in done.stderr
     assert 'never raised by hand' not in done.stderr
+
+
+def test_a_drop_beside_a_raise_prints_both_remedies(tmp_path):
+    # f.txt is empty: a dropped record of 0 is still put back, not lowered.
+    repo = make_repo(tmp_path, {'f.txt': '', 'g.py': 'x\n' * 600})
+    base = put_records(repo, {'f.txt': 0, 'g.py': 600})
+    put_records(repo, {'g.py': 900})
+    done = run_gate(repo, 'check', base_ref=base, require_tight='true')
+    assert '+ f.txt: record 0' in done.stderr and 'g.py: required 600' in done.stderr
+    assert 'raises nothing' in done.stderr and 'that is what tighten' in done.stderr
+    assert done.returncode == 1 and 'never raised by' not in done.stderr
 
 
 def test_the_base_records_bind_not_the_head_edits(tmp_path):
@@ -247,7 +252,8 @@ def test_the_seed_paths_unclassified_check_fails(tmp_path):
 
 
 @pytest.mark.parametrize('document', ['{"baseline": {', '{"baseline":',
-                                      '{"trees": {"tests/": 20}} junk'])
+                                      '{"trees": {"tests/": 20}} junk',
+                                      b'{"baseline": {"\xff": 1}}'])
 def test_a_truncated_records_file_is_a_configuration_error(tmp_path, document):
     repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
     add_and_commit(repo, RECORDS, document, 'truncate the records file')
@@ -255,14 +261,6 @@ def test_a_truncated_records_file_is_a_configuration_error(tmp_path, document):
     assert done.returncode == 2, done.stderr
     assert 'records file' in done.stderr and 'size-baseline.json' in done.stderr
     assert 'Traceback' not in done.stderr
-
-
-def test_a_non_utf8_records_file_is_named(tmp_path):
-    repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
-    add_and_commit(repo, RECORDS, b'{"baseline": {"\xff": 1}}', 'break the encoding')
-    done = run_gate(repo, 'tighten')
-    assert done.returncode == 2
-    assert 'size-baseline.json' in done.stderr
 
 
 def test_tighten_seeds_over_ceiling_files(tmp_path):
