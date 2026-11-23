@@ -166,11 +166,6 @@ def test_the_own_gate_mirrors_the_block():
                       ['size-baseline']['steps']
                       if step.get('uses', '').startswith('actions/checkout')][0]
     assert checkout['with'] == block_checkout['with']
-
-
-def test_no_workflow_dispatch_trigger_remains_in_tests():
-    tests_yml = yaml.safe_load(
-        (ACTION_ROOT / '.github' / 'workflows' / 'tests.yml').read_text())
     assert 'workflow_dispatch' not in tests_yml[True]
 
 
@@ -295,22 +290,16 @@ def test_a_push_to_another_branch_never_reaches_the_gate(tmp_path):
     assert 'cannot handle event' in done.stderr
 
 
-def test_an_exact_seed_entry_the_head_adds_is_accepted(tmp_path):
+@pytest.mark.parametrize('wrong', [None, 502, 626])
+def test_a_seed_entry_the_head_adds_must_be_the_exact_count(tmp_path, wrong):
     # Seeding against an empty base map: the entry must be exact.
     repo = make_repo(tmp_path, branch='master', files={'src/over.py': 'x\n' * 627})
     base = put_records(repo, {})
-    put_records(repo, {'src/over.py': 627})
+    put_records(repo, {'src/over.py': wrong or 627})
     done = pull_request(repo, base, require_tight='true')
-    assert done.returncode == 0, done.stderr
-
-
-@pytest.mark.parametrize('wrong', [502, 626])
-def test_a_wrong_seed_number_fails_naming_the_exact_count(tmp_path, wrong):
-    repo = make_repo(tmp_path, branch='master', files={'src/over.py': 'x\n' * 627})
-    base = put_records(repo, {})
-    put_records(repo, {'src/over.py': wrong})
-    done = pull_request(repo, base, require_tight='true')
-    assert done.returncode == 1
+    assert done.returncode == int(wrong is not None), done.stderr
+    if wrong is None:
+        return
     # A wrong seed is not a seed: the ceiling violation names the real
     # count and require-tight refuses the entry.
     assert 'src/over.py: 627 lines above its ceiling of 500' in done.stderr
@@ -447,10 +436,9 @@ RAISES = [
 
 @pytest.mark.parametrize('base_counts,base_map,head_counts,head_map,line',
                          RAISES, ids=[
-                             'raised', 'added', 'raised-graduated', 'seed',
-                             'loose-on-base', 'shrunk-kept', 'lowered-partway',
-                             'records-file-dropped', 'lowered-below-file',
-                             'lowered-below-graduated', 'lowered-to-file',
+                             'raised', 'added', 'raised-graduated', 'seed', 'loose-on-base',
+                             'shrunk-kept', 'lowered-partway', 'records-file-dropped',
+                             'lowered-below-file', 'lowered-below-graduated', 'lowered-to-file',
                              'dropped-over-ceiling', 'dropped-untyped'])
 def test_require_tight_false_refuses_a_record_raised_or_lowered_past_its_bounds(
         tmp_path, base_counts, base_map, head_counts, head_map, line):
