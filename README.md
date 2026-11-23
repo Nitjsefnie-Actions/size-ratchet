@@ -93,8 +93,10 @@ branch). A pull request need not tighten the entries it loosens: under
 the default `require-tight: 'false'` that run names each loose entry as a
 notice and passes, and it still fails on growth past a record, on a
 per-file record the pull request raises over the base, lowers below
-both its base record and its file, or drops while tighten keeps it, and
-on a tree budget it raises above both its base and its total. Other events, including pushes to
+both its base record and its file, or drops while tighten keeps it, on a
+tree budget it raises above both its base and its total, and on growth
+past what tighten over the base tree would write (see Ratchet and records
+and Tree budgets). Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
 closed and name the event. A `mode: check` forced by editing the block
 must supply `base-ref` when the event has no PR base SHA.
@@ -210,7 +212,7 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
 | `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch run. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails only a per-file entry the head raises over the base, lowers below both its base record and its file, or drops while tighten keeps it, or a tree budget raised above both its base and the head's total (see Ratchet and records and Tree budgets), and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
+| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails only a per-file entry the head raises over the base, lowers below both its base record and its file, or drops while tighten keeps it, a tree budget raised above both its base and the head's total, and growth past what tighten over the base tree would write: a file above the lower of its base record and its base count, or a tree total above the lower of its base budget and base total without a feature commit (see Ratchet and records and Tree budgets), and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
 | `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
 | `tree-budgets` | `''` | Multiline `<folder>/` lines, each budgeting the total line count under that folder (see Tree budgets). Empty budgets no tree. |
 
@@ -297,11 +299,24 @@ entry of a measured file over its ceiling or with none — an entry
 tighten over the base keeps — naming each and what tighten would write.
 A record lowered anywhere from its file's count up to its base record
 passes this rule, as does the dropped entry of a deleted, excluded or
-graduated file. With
-`require-tight` on, or when neither revision has records (see Seeding),
-it measures the base tree as well, so the base's counts bind the
-comparison. Each failure names the path, its measured lines, and the
-record, base count or ceiling it exceeded. A
+graduated file. It
+measures the base tree as well. Under `require-tight: 'false'` an entry
+in the base map binds the head as tighten over the base tree would,
+whatever ceiling, override or record the head sets. A file the base tree
+measures may not grow above the lower of its base record and its base
+count, even within its ceiling: an entry tighten is about to drop, for a
+file at or below its ceiling there, holds the file at its base count
+until the push run's tighten commit or a merged pull request drops it,
+and dropping the entry in the growing pull request does not lift it. A
+typed file the base tree does not measure (deleted there, or binary) may
+not exceed the lower of its base record and its head ceiling, and an
+untyped one its base record; under `unclassified: fail` such an untyped
+file fails as an unrecorded one does. A raise, lower or drop refusal on
+an entry over that bound shows the bound, or no entry for a file the
+base tree does not measure. The bound is judged under the head's
+`exclude`, ceilings and overrides, since the base revision's inputs are
+never read (see Inputs). Each failure names the path, its measured
+lines, and the record, base count or ceiling it exceeded. A
 recorded entry whose file shrank, was deleted, was excluded, or is at or
 below its ceiling is **stale**: `stale: warn` reports it as a notice;
 `stale: fail` fails the run. `require-tight: 'true'` also fails
@@ -399,10 +414,15 @@ empty, the default, nothing reads, judges or writes `trees`.
   subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?!?:` (`feat:`,
   `feat!:`, `feat(<scope>):` or `feat(<scope>)!:`) — only a feature
   change, breaking or not, may raise a budget; any other change trims
-  its own lines under the folder. Reading that history needs a full
-  clone: a shallow or
+  its own lines under the folder. Under `require-tight: 'false'` a head
+  total above the lower of the base's budget and the base tree's total
+  also fails, whatever budget the head writes, unless such a commit is
+  in the range and the total is at or below the head's budget; a pull
+  request whose total stays at or below that lower value passes.
+  Reading that history needs a full clone: a shallow or
   unreadable history fails with exit 2, and is read only when a budget
-  rises. Under `require-tight: 'true'`, a folder whose total or budget
+  rises or, under `'false'`, a total passes the base tree's total
+  beneath the base's budget. Under `require-tight: 'true'`, a folder whose total or budget
   moved between base and head must record exactly the head's total.
 - **The default-branch run** fails when a total exceeds its budget, with
   or without `push-key`, under either `require-tight`. A budget above its

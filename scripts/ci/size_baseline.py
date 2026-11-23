@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deliver
+import pending
 import records
 from records import diff_report, diff_report_subset
 
@@ -294,8 +295,14 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         if path in seed_adds:
             continue
         failures.append(f'{path}: {count} lines above its ceiling of {limit}')
+    base_sizes = measure(root, list_tree(root, base_ref), policy, base_map,
+                         records_path)
+    held, caps = ({}, {}) if require_tight else pending.bounds(
+        base_map, base_sizes, sizes, policy)
     for path, state in record_states(sizes, base_map, policy).items():
-        if state[0] == 'grown':
+        if path in held:
+            failures.extend(held[path])
+        elif state[0] == 'grown':
             count, recorded = state[1]
             failures.append(f'{path}: {count} lines above its record of {recorded}')
         elif state[0] == 'same':
@@ -311,9 +318,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
     required = dict(base_map) if required is None else dict(required)
     for path in seed_adds:
         required[path] = head_entries[path]
+    pending.cap(required, caps)
     if require_tight:
-        base_sizes = measure(root, list_tree(root, base_ref), policy,
-                             base_map, records_path)
         touched = _changed_entries(base_sizes, sizes, base_map, head_entries)
         # An input-caused exclusion is the pull request's change; a
         # ceiling-raise graduation stays a notice (see the issue).
@@ -328,21 +334,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         groups = [('require-tight: entries this pull request changes must '
                    'be tight, and these are not:', scoped)]
     else:
-        # A raised or added entry binds every later pull request, and so
-        # does one lowered below its file or dropped while tighten keeps it.
-        groups = [('records this pull request raises over the base (keep '
-                   'each at or below its base record; drop an entry the base '
-                   'lacks), beside what tighten writes:',
-                   {path for path, count in head_entries.items()
-                    if path not in seed_adds
-                    and (path not in base_map or count > base_map[path])}),
-                  ('records this pull request lowers below both its base '
-                   'record and its file, or drops while tighten keeps it, '
-                   'beside what tighten writes:',
-                   (set(required) - set(head_entries))
-                   | {path for path, count in head_entries.items()
-                      if path in base_map and path in sizes
-                      and count < min(base_map[path], sizes[path])})]
+        groups = pending.groups(head_entries, base_map, sizes, required,
+                                seed_adds)
     growth, restores, lowers = bool(failures), set(), set()
     for header, scoped in groups:
         restore = {path for path in scoped if head_entries.get(path, -1)
@@ -357,7 +350,8 @@ def _check(root, member, base_ref, entries, policy, head_map, records_path,
         for failure in failures:
             print(f'  {failure}', file=sys.stderr)
         for remedy, due in ((GROWTH_REMEDY, growth), (LOWER_REMEDY, lowers),
-                            (RESTORE_REMEDY, restores)):
+                            (pending.RESTORE_REMEDY if restores & set(held)
+                             else RESTORE_REMEDY, restores)):
             if due:
                 print(remedy, file=sys.stderr)
         return 1

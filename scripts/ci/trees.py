@@ -17,6 +17,10 @@ RAISE_REMEDY = (
     'base-ref..HEAD starting feat:, feat!:, feat(<scope>): or '
     'feat(<scope>)!:. Any other change trims its own lines under that '
     'folder.')
+HEADROOM_REMEDY = (
+    "Only a feature change may grow a total into its budget's headroom over "
+    'the base total: a commit subject in base-ref..HEAD as for a raise. Any '
+    'other change trims its own lines under that folder.')
 TREE_REMEDY = (
     "Tighten writes each listed folder's budget at its total, never above "
     'its record. A higher budget needs a feature commit in the range, '
@@ -98,6 +102,11 @@ def _tighten(root, records_path, recorded, sums):
 def _check(root, base_ref, base, head, sums, base_sums, require_tight):
     failures = []
     raised = []
+    # Under 'false' a budget the push run is about to lower to the base
+    # total binds as lowered, unless a feature commit spends its headroom.
+    held = {} if require_tight else {
+        folder: base_sums[folder] for folder, total in sums.items()
+        if folder in base and total > base_sums[folder] < base[folder]}
     for folder, total in sums.items():
         record = head.get(folder)
         shown = 'no record' if record is None else f'record {record}'
@@ -116,8 +125,9 @@ def _check(root, base_ref, base, head, sums, base_sums, require_tight):
                     f'carry the seed tighten writes: total {total}, {shown}')
             continue
         if record is None:
-            failures.append(f'{folder}: the head drops the record '
-                            f'(base {base[folder]}); total {total}')
+            failures.append(f'{folder}: the head drops the record (base '
+                            + (f'total {held.pop(folder)}' if folder in held
+                               else str(base[folder])) + f'); total {total}')
             continue
         if total > record:
             failures.append(f'{folder}: {total} lines above its record of '
@@ -133,13 +143,19 @@ def _check(root, base_ref, base, head, sums, base_sums, require_tight):
         elif record > max(base[folder], total):
             failures.append(f'{folder}: record raised from {base[folder]} '
                             f'to {record}, above the total {total}; tighten '
-                            f'writes {total}')
+                            f'writes {total}' + (
+                                f' ({held[folder]}, the base total, without a '
+                                'feature commit)' if folder in held else ''))
     # Read lazily: a pull request that raises no budget needs no history.
-    if raised and not has_feature_commit(root, base_ref):
+    if (raised or held) and not has_feature_commit(root, base_ref):
         failures.extend(
             f'{folder}: total {sums[folder]}, record raised from '
             f'{base[folder]} to {head[folder]} without a feature commit. '
             + RAISE_REMEDY for folder in raised)
+        failures.extend(
+            f'{folder}: {sums[folder]} lines above the base total of {bound} '
+            f'(budget {base[folder]}) without a feature commit. '
+            + HEADROOM_REMEDY for folder, bound in held.items())
     return failures
 
 
