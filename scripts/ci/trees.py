@@ -162,7 +162,7 @@ def _verify(head, sums, require_tight, push_key_set, called, staged):
             for folder, total in sums.items()
             if folder in head and total > head[folder]]
     expected = tightened(head, sums)
-    loose = size_baseline.diff_report(expected, head)
+    loose = records.diff_report(expected, head)
     if loose and push_key_set:
         staged[TREES_MEMBER] = expected
         print('size-ratchet: staged the tightened tree budgets for the push:')
