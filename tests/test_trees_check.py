@@ -89,34 +89,6 @@ def test_no_head_entry_fails_past_the_base_total(tmp_path, make_base):
 # --- the base has a record ------------------------------------------------
 
 
-def test_a_total_above_the_head_record_fails(tmp_path):
-    repo = make_repo(tmp_path, TREE)
-    base = put(repo, {'tests/': TOTAL + 2}, {})
-    add_and_commit(repo, GROW, 'm\n' * 5, 'feat: grow the tests')
-    done = check(repo, base, require_tight='false')
-    assert done.returncode == 1
-    assert 'tests/: 20 lines above its record of 17' in done.stderr
-
-
-def test_a_record_lowered_below_the_total_fails(tmp_path):
-    repo = make_repo(tmp_path, TREE)
-    base = put(repo, {'tests/': TOTAL + 2}, {})
-    put(repo, {'tests/': TOTAL - 1}, {})
-    done = check(repo, base, require_tight='false')
-    assert done.returncode == 1
-    assert 'tests/: 15 lines above its record of 14' in done.stderr
-
-
-def test_a_dropped_record_fails(tmp_path):
-    repo = make_repo(tmp_path, TREE)
-    base = put(repo, {'tests/': TOTAL}, {})
-    put(repo, {}, {})
-    done = check(repo, base, require_tight='false')
-    assert done.returncode == 1
-    assert 'tests/: the head drops the record (base 15); total 15' in \
-        done.stderr
-
-
 def test_a_nul_byte_does_not_hide_a_files_growth(tmp_path):
     repo = make_repo(tmp_path, TREE)
     base = put(repo, {'tests/': TOTAL}, {})

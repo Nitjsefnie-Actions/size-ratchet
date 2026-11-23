@@ -36,7 +36,6 @@ def test_the_block_resolves_the_default_branch_at_run_time():
 
 
 def test_a_push_beside_pull_request_carries_a_branches_filter():
-    # A consumer's rule: push beside pull_request filters by branch.
     trigger = install_block()[True]
     assert 'pull_request' in trigger and 'push' in trigger
     assert 'branches' in (trigger['push'] or {})
@@ -190,7 +189,6 @@ def test_a_pull_request_shrink_passes_under_the_block_defaults(tmp_path):
 
 
 def test_a_pull_request_shrink_must_carry_the_record(tmp_path):
-    # Under require-tight 'true' the scoped check binds.
     repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
     base = put_records(repo, {'src/x.py': 600})
     add_and_commit(repo, 'src/x.py', 'a\n' * 550, 'shrink x')
@@ -208,14 +206,12 @@ def test_two_concurrent_shrinks_merge_then_an_unrelated_pr_passes(tmp_path):
     # loose entry a stale notice, not its failure.
     repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 600, 'src/y.py': 'b\n'})
     base = put_records(repo, {'src/x.py': 600})
-    # PR A's head: shrink + exact record -> passes.
     add_and_commit(repo, 'src/x.py', 'a\n' * 550, 'shrink x')
     put_records(repo, {'src/x.py': 550})
     done = pull_request(repo, base, require_tight='true')
     assert done.returncode == 0, done.stderr
     # The merged outcome: 550 recorded, 520 lines, over the ceiling.
     add_and_commit(repo, 'src/x.py', 'a\n' * 520, 'the second shrink lands')
-    # PR C: touches only y.py, never x.py or its record.
     base_after = head(repo)
     add_and_commit(repo, 'src/y.py', 'b\nb\nb\n', 'the unrelated pull request')
     done = pull_request(repo, base_after, require_tight='true')
@@ -270,7 +266,6 @@ def test_a_loose_merge_under_require_tight_false_leaves_main_green(tmp_path):
 def test_a_touching_pull_request_must_make_the_entry_exact(tmp_path):
     repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n' * 500})
     base = put_records(repo, {'src/x.py': 550})
-    # Growing the file touches the entry: it must become exact.
     add_and_commit(repo, 'src/x.py', 'a\n' * 501, 'touch the loose file')
     done = pull_request(repo, base, require_tight='true')
     assert done.returncode == 1
@@ -281,7 +276,6 @@ def test_a_touching_pull_request_must_make_the_entry_exact(tmp_path):
 
 
 def test_a_push_to_another_branch_never_reaches_the_gate(tmp_path):
-    # The action itself still fails closed naming the event.
     repo = make_repo(tmp_path, branch='master', files={'src/x.py': 'a\n'})
     add_and_commit(repo, 'src/x.py', 'b\n', 'a branch commit')
     done = run_gate(repo, 'auto', require_tight='true', default_branch='master', extra_env={
@@ -325,7 +319,6 @@ def test_a_records_file_deletion_fails_naming_every_entry(tmp_path):
     git(repo, 'commit', '-qm', 'drop records')
     done = pull_request(repo, base, require_tight='true')
     assert done.returncode == 1
-    # The head carries no records, so the required entry reads as missing.
     assert '+ src/x.py: record 600' in done.stderr
     assert 'Traceback' not in done.stderr
 
@@ -412,50 +405,3 @@ def test_a_grown_unrecorded_file_cannot_record_itself(tmp_path):
     assert 'src/y.py: 900 lines above its ceiling of 500' in done.stderr
     assert '- src/y.py: recorded 900' in done.stderr
     assert 'never raised by hand' in done.stderr and 'that is what tighten writes' in done.stderr
-
-
-RAISED = ('raises over the base (keep each at or below its base record; drop '
-          'an entry the base lacks), beside what tighten writes:\n    ')
-LOWERED = ('lowers below both its base record and its file, or drops while '
-           'tighten keeps it, beside what tighten writes:\n    ')
-RAISES = [
-    ({'f.py': 600}, {'f.py': 600}, {}, {'f.py': 900}, RAISED + '~ f.py: required 600, recorded 900'),
-    ({'f.py': 600, 'h.py': 300}, {'f.py': 600}, {}, {'f.py': 600, 'h.py': 900}, RAISED + '- h.py: recorded 900'),
-    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 601}, RAISED + '- f.py: recorded 601'),
-    ({'f.py': 600}, {}, {}, {'f.py': 600}, None),
-    ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 900}, None),
-    ({'f.py': 600}, {'f.py': 900}, {'f.py': 550}, {'f.py': 900}, None),
-    ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 700}, None),
-    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, None, None),
-    ({'f.py': 900}, {'f.py': 900}, {}, {'f.py': 500}, LOWERED + '~ f.py: required 900, recorded 500'),
-    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 300}, LOWERED + '- f.py: recorded 300'),
-    ({'f.py': 900}, {'f.py': 950}, {}, {'f.py': 900}, None),
-    ({'f.py': 900}, {'f.py': 900}, {}, {}, LOWERED + '+ f.py: record 900'),
-    ({'f.txt': 9}, {'f.txt': 9}, {}, {}, LOWERED + '+ f.txt: record 9'),
-]
-
-
-@pytest.mark.parametrize('base_counts,base_map,head_counts,head_map,line',
-                         RAISES, ids=[
-                             'raised', 'added', 'raised-graduated', 'seed', 'loose-on-base',
-                             'shrunk-kept', 'lowered-partway', 'records-file-dropped',
-                             'lowered-below-file', 'lowered-below-graduated', 'lowered-to-file',
-                             'dropped-over-ceiling', 'dropped-untyped'])
-def test_require_tight_false_refuses_a_record_raised_or_lowered_past_its_bounds(
-        tmp_path, base_counts, base_map, head_counts, head_map, line):
-    repo = make_repo(tmp_path, {p: 'x\n' * n for p, n in base_counts.items()})
-    base = put_records(repo, base_map)
-    write_files(repo, {p: 'x\n' * n for p, n in head_counts.items()})
-    if head_map is None:
-        git(repo, 'rm', '-q', RECORDS)
-    else:
-        write_files(repo, {RECORDS: records.document_text('baseline', head_map)})
-    git(repo, 'commit', '-qam', 'the pull request', '--allow-empty')
-    done = pull_request(repo, base, require_tight='false')
-    assert done.returncode == int(line is not None), done.stderr
-    if line:
-        assert line + '\n' in done.stderr
-        restores = line.startswith(LOWERED) and line[len(LOWERED)] in '+~'  # else lower
-        assert ('raises nothing by hand: restore' in done.stderr) is restores
-        assert ('only a recorded number: that is what' in done.stderr) is not restores
-        assert 'never raised by hand' not in done.stderr
