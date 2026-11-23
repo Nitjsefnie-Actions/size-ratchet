@@ -65,9 +65,15 @@ inputs:
       would write over the head tree; entries the pull request leaves
       untouched stay a stale notice. false (default) fails only a
       per-file entry the head raises over the base, lowers below both
-      its base record and its file, or drops while tighten keeps it, or
-      a tree budget raised above both its base and the head's total, and a
-      default-branch run with no push-key warns on each loose entry. A
+      its base record and its file, or drops while tighten keeps it, a
+      tree budget raised above both its base and the head's total, and
+      growth past what tighten over the base tree would write (a file
+      above the lower of its base record and its base count, or for a
+      file the base tree does not measure the lower of its base record
+      and its ceiling, and such an untyped file under unclassified: fail;
+      a tree total above the lower of its base budget and base total
+      without a feature commit); a default-branch run with no push-key
+      warns on each loose entry. A
       called run with no push-key never fails on a loose entry.
     required: false
     default: 'false'

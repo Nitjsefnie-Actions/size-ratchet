@@ -58,8 +58,9 @@ def has_feature_commit(root, base_ref):
     shallow = records.subprocess_run(
         ['git', '-C', str(root), 'rev-parse', '--is-shallow-repository'])
     if shallow.returncode != 0 or shallow.stdout.strip() != b'false':
-        raise ValueError('cannot read the feature history for a raised tree '
-                         'budget: the repository is shallow or unreadable; '
+        raise ValueError('cannot read the feature history a raised tree '
+                         'budget or a total above the base total needs: the '
+                         'repository is shallow or unreadable; '
                          'check out with fetch-depth: 0')
     log = records.subprocess_run(
         ['git', '-C', str(root), 'log', '--format=%s', f'{base_ref}..HEAD'])
@@ -106,7 +107,8 @@ def _check(root, base_ref, base, head, sums, base_sums, require_tight):
     # total binds as lowered, unless a feature commit spends its headroom.
     held = {} if require_tight else {
         folder: base_sums[folder] for folder, total in sums.items()
-        if folder in base and total > base_sums[folder] < base[folder]}
+        if folder in base and base_sums[folder] < base[folder]
+        and total > base_sums[folder]}
     for folder, total in sums.items():
         record = head.get(folder)
         shown = 'no record' if record is None else f'record {record}'
