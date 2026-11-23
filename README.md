@@ -91,8 +91,9 @@ a push to the repository's actual default branch it tightens the records
 over that tree and commits the result (see Records on the default
 branch). A pull request need not tighten the entries it loosens: under
 the default `require-tight: 'false'` that run names each loose entry as a
-notice and passes, and it still fails on growth past a record and on
-a record the pull request raises over the base. Other events, including pushes to
+notice and passes, and it still fails on growth past a record, on a
+per-file record the pull request raises over the base, and on a tree
+budget it raises above both its base and its total. Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
 closed and name the event. A `mode: check` forced by editing the block
 must supply `base-ref` when the event has no PR base SHA.
@@ -208,7 +209,7 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
 | `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch run. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails only an entry the head raises over the base (see Ratchet and records), and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
+| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails only a per-file entry the head raises over the base, or a tree budget raised above both its base and the head's total (see Ratchet and records and Tree budgets), and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
 | `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
 | `tree-budgets` | `''` | Multiline `<folder>/` lines, each budgeting the total line count under that folder (see Tree budgets). Empty budgets no tree. |
 
