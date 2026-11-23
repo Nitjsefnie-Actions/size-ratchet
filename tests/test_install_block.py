@@ -454,3 +454,7 @@ def test_require_tight_false_refuses_a_record_raised_or_lowered_past_its_bounds(
     assert done.returncode == int(line is not None), done.stderr
     if line:
         assert line + '\n' in done.stderr
+        # A dropped or lowered entry is put back; anything else is growth.
+        restores = line.startswith(LOWERED) and line[len(LOWERED)] in '+~'
+        assert ('raises nothing by hand: restore' in done.stderr) is restores
+        assert ('never raised by hand' in done.stderr) is not restores

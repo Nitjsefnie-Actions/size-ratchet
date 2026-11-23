@@ -281,7 +281,8 @@ map is records. Ceilings live only in `with:`.
 - A file **without** a record may not exceed its ceiling.
 - A recorded number is never raised and no entry is ever added by hand:
   growth is answered by relocating code into a new file, or by shrinking
-  the file.
+  the file. Putting back what tighten writes for an entry the pull
+  request dropped or lowered below it raises nothing by hand.
 
 **Check** compares the head tree against the baseline read at `base-ref`,
 so a records edit in the head does not loosen the gate, and under either
