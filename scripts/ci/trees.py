@@ -129,6 +129,11 @@ def _check(root, base_ref, base, head, sums, base_sums, require_tight):
             failures.append(f'require-tight: {folder}: total {total} moved '
                             f'or its record did, so it must record exactly '
                             f'{total}; recorded {record}')
+        # Reached only under 'false': 'true' refused this record above.
+        elif record > max(base[folder], total):
+            failures.append(f'{folder}: record raised from {base[folder]} '
+                            f'to {record}, above the total {total}; tighten '
+                            f'writes {total}')
     # Read lazily: a pull request that raises no budget needs no history.
     if raised and not has_feature_commit(root, base_ref):
         failures.extend(

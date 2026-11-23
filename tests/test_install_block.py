@@ -12,7 +12,7 @@ from tests._block_harness import (BLOCK_IF, block_step_if, block_with_inputs,
                                   install_block_text, push_run_starts,
                                   run_block_as_called)
 from tests.helpers import (add_and_commit, git, head, make_repo, put_records,
-                           run_gate)
+                           records, run_gate, write_files)
 
 ACTION_ROOT = Path(__file__).resolve().parents[1]
 RECORDS = '.github/size-baseline.json'
@@ -416,3 +416,40 @@ def test_a_grown_unrecorded_file_cannot_record_itself(tmp_path):
     assert done.returncode == 1
     assert 'src/y.py: 900 lines above its ceiling of 500' in done.stderr
     assert '- src/y.py: recorded 900' in done.stderr
+
+
+RAISES = [
+    ({'f.py': 600}, {'f.py': 600}, {}, {'f.py': 900},
+     '~ f.py: required 600, recorded 900'),
+    ({'f.py': 600, 'h.py': 300}, {'f.py': 600}, {}, {'f.py': 600, 'h.py': 900},
+     '- h.py: recorded 900'),
+    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, {'f.py': 601},
+     '- f.py: recorded 601'),
+    ({'f.py': 600}, {}, {}, {'f.py': 600}, None),
+    ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 900}, None),
+    ({'f.py': 600}, {'f.py': 900}, {'f.py': 550}, {'f.py': 900}, None),
+    ({'f.py': 600}, {'f.py': 900}, {}, {'f.py': 700}, None),
+    ({'f.py': 600}, {'f.py': 600}, {'f.py': 400}, None, None),
+]
+
+
+@pytest.mark.parametrize('base_counts,base_map,head_counts,head_map,line',
+                         RAISES, ids=[
+                             'raised', 'added', 'raised-graduated', 'seed',
+                             'loose-on-base', 'shrunk-kept', 'lowered-partway',
+                             'records-file-dropped'])
+def test_require_tight_false_refuses_a_record_raised_over_the_base(
+        tmp_path, base_counts, base_map, head_counts, head_map, line):
+    repo = make_repo(tmp_path, {p: 'x\n' * n for p, n in base_counts.items()})
+    base = put_records(repo, base_map)
+    write_files(repo, {p: 'x\n' * n for p, n in head_counts.items()})
+    if head_map is None:
+        git(repo, 'rm', '-q', RECORDS)
+    else:
+        write_files(repo, {RECORDS: records.document_text('baseline', head_map)})
+    git(repo, 'commit', '-qam', 'the pull request', '--allow-empty')
+    done = pull_request(repo, base, require_tight='false')
+    assert done.returncode == int(line is not None), done.stderr
+    if line:
+        assert ('raises over the base must be what tighten writes, and these '
+                f'are not:\n    {line}\n') in done.stderr

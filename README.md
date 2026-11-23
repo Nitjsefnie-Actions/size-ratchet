@@ -91,7 +91,8 @@ a push to the repository's actual default branch it tightens the records
 over that tree and commits the result (see Records on the default
 branch). A pull request need not tighten the entries it loosens: under
 the default `require-tight: 'false'` that run names each loose entry as a
-notice and passes, and it still fails on growth past a record. Other events, including pushes to
+notice and passes, and it still fails on growth past a record and on
+a record the pull request raises over the base. Other events, including pushes to
 another branch that reach the action without the steps' `if`, fail
 closed and name the event. A `mode: check` forced by editing the block
 must supply `base-ref` when the event has no PR base SHA.
@@ -207,7 +208,7 @@ the ruleset's `DeployKey` bypass actor; no extra workflow is added.
 | `mode` | `'auto'` | Event dispatch above, or exactly `check` / `tighten` to force a mode. |
 | `base-ref` | `${{ github.event.pull_request.base.sha }}` | Git revision whose records bind a check. Required for check, unused by tighten and by the default-branch run. |
 | `stale` | `'warn'` | `warn` reports a stale record as a notice; `fail` fails the run on one. |
-| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails neither, and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
+| `require-tight` | `'false'` | `'true'` fails a check whose touched entries differ from what tighten would write, naming each; entries the pull request leaves untouched stay a stale notice. `'false'` fails only an entry the head raises over the base (see Ratchet and records), and a default-branch run with no `push-key` warns on each loose entry. A called default-branch run with no `push-key` fails on neither value (see Records on the default branch). |
 | `push-key` | `''` | SSH write deploy key that commits the tightened records on a default-branch push (see Records on the default branch). Empty pushes nothing. |
 | `tree-budgets` | `''` | Multiline `<folder>/` lines, each budgeting the total line count under that folder (see Tree budgets). Empty budgets no tree. |
 
@@ -281,7 +282,12 @@ map is records. Ceilings live only in `with:`.
   the file.
 
 **Check** compares the head tree against the baseline read at `base-ref`,
-so a records edit in the head does not loosen the gate. With
+so a records edit in the head does not loosen the gate, and under either
+`require-tight` it fails when the head raises an entry over the base: a
+record above its base record, or an entry the base map lacks other than
+the exact seed an empty base map admits (see Seeding). The failure names
+each such entry and what tighten would write; an entry the head keeps at
+or below its base value passes this rule whatever the head counts. With
 `require-tight` on, or when neither revision has records (see Seeding),
 it measures the base tree as well, so the base's counts bind the
 comparison. Each failure names the path, its measured lines, and the
@@ -377,7 +383,9 @@ empty, the default, nothing reads, judges or writes `trees`.
   fails, naming the folder, its total and the budget, when the head's
   total exceeds the
   head's budget, when the head drops the budget or lowers it below the
-  total, or when the head's budget is above the base's and no commit
+  total, when the head's budget is above both the base's and the head's
+  total, naming what tighten writes, or when the head's budget is above
+  the base's and no commit
   subject in `base-ref..HEAD` matches `^feat(\([^)]*\))?!?:` (`feat:`,
   `feat!:`, `feat(<scope>):` or `feat(<scope>)!:`) — only a feature
   change, breaking or not, may raise a budget; any other change trims

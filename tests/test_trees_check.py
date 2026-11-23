@@ -173,6 +173,17 @@ def test_a_feature_commit_before_the_base_does_not_count(tmp_path):
     assert 'without a feature commit' in done.stderr
 
 
+def test_a_feature_raise_above_the_head_total_fails(tmp_path):
+    repo = make_repo(tmp_path, TREE)
+    base = put(repo, {'tests/': TOTAL}, {})
+    add_and_commit(repo, GROW, 'm\n' * 5, 'feat: grow the tests')
+    put(repo, {'tests/': TOTAL + 6}, {})
+    done = check(repo, base, require_tight='false')
+    assert done.returncode == 1
+    assert ('tests/: record raised from 15 to 21, above the total 20; '
+            'tighten writes 20') in done.stderr
+
+
 def raised_origin(tmp_path, subject):
     origin = make_repo(tmp_path, TREE, name='origin')
     base = put(origin, {'tests/': TOTAL}, {})
