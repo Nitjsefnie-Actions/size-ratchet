@@ -9,8 +9,8 @@ RESTORE_REMEDY = (
     'Putting back what this pull request dropped or lowered raises nothing '
     'by hand: restore each number shown, or exclude the file or shrink it '
     'to the lower of the head record (its ceiling for a dropped entry) and '
-    'the bound named above, and commit what tighten then writes; tighten '
-    "never drops an untyped file's record.")
+    'any bound named above for it, and commit what tighten then writes; '
+    "tighten never drops an untyped file's record.")
 
 
 def bounds(base_map, base_sizes, sizes, policy):
@@ -49,10 +49,10 @@ def _why(kind, recorded, base, ceiling):
         return ''
     if ceiling is None or base > ceiling:
         return f'; tighten lowers its base record of {recorded} to it'
-    return (f'; the base record of {recorded} is one tighten drops, the file '
-            'being at or below its ceiling in the base tree, and until the '
-            "push run's tighten commit or a merged pull request drops it the "
-            'file may not grow past its base count')
+    return (f'; the base record of {recorded} is one tighten drops under this '
+            "run's ceilings, the file being at or below its ceiling in the "
+            "base tree, and until the push run's tighten commit or a merged "
+            'pull request drops it the file may not grow past its base count')
 
 
 def cap(required, caps):
@@ -79,4 +79,5 @@ def groups(head_entries, base_map, sizes, required, seed_adds):
              (set(required) - set(head_entries))
              | {path for path, count in head_entries.items()
                 if path in base_map and path in sizes
-                and count < min(base_map[path], sizes[path])})]
+                and count < min(base_map[path], sizes[path])
+                and count != required.get(path)})]

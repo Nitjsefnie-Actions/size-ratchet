@@ -15,9 +15,9 @@ LOWERED = ('lowers below both its base record and its file, or drops while '
            'tighten keeps it, beside what tighten writes:\n    ')
 LOWERS = '; tighten lowers its base record of 900 to it'
 HELD = 'f.py: 900 lines above its base count of 600' + LOWERS + '\n  records this pull request '
-DROPS = ('; the base record of 900 is one tighten drops, the file being at or below its ceiling in '
-         "the base tree, and until the push run's tighten commit or a merged pull request drops it "
-         'the file may not grow past its base count')
+DROPS = ("; the base record of 900 is one tighten drops under this run's ceilings, the file being at "
+         "or below its ceiling in the base tree, and until the push run's tighten commit or a merged "
+         'pull request drops it the file may not grow past its base count')
 GONE = '; the base tree measures no file here, so tighten drops its base record of 900'
 UNCLASSIFIED = 'f.txt: unclassified (no type and no record); name a ceiling for it or exclude it'
 BIN = 'f.py: 900 lines above its ceiling of 500' + GONE
@@ -47,6 +47,10 @@ ROWS = [
     ({'f.py': 600}, {'f.py': 900}, {'f.py': 900}, None, {}, 'f.py: 900 lines above its base count of 600' + LOWERS, 0),
     ({'f.py': 600}, {'f.py': 900}, {'f.py': 700}, None, {}, 'f.py: 700 lines above its base count of 600' + LOWERS, 1),
     ({'f.py': 600}, {'f.py': 900}, {'f.py': 950}, None, {}, 'f.py: 950 lines above its base count of 600' + LOWERS, 1),
+    ({'f.py': 600}, {'f.py': 900}, {'f.py': 900}, {'f.py': 600}, {}, 'f.py: 900 lines above its base count of 600' + LOWERS, 1),
+    ({'Makefile': 600}, {'Makefile': 900}, {'Makefile': 800}, None, {}, 'Makefile: 800 lines above its base count of 600' + LOWERS, 1),
+    ({}, {'f.py': 400}, {'f.py': 450}, None, {}, 'f.py: 450 lines above its record of 400', 1),
+    ({'f.py': 450}, {'f.py': 400}, {'f.py': 500}, None, {}, 'f.py: 500 lines above its record of 400', 1),
     ({'f.py': 600}, {'f.py': 900}, {'f.py': 900}, None, {'ceilings': 'source: 1000'}, 'f.py: 900 lines above its base count of 600' + DROPS, 1),
     ({}, {'f.py': 900}, {'f.py': 900}, None, {}, 'f.py: 900 lines above its ceiling of 500' + GONE, 0),
     ({'f.py': 400}, {'f.py': 900}, {'f.py': 900}, None, {}, 'f.py: 900 lines above its base count of 400' + DROPS, 0),
@@ -89,7 +93,7 @@ def test_a_pending_tighten_binds_the_head(tmp_path, base_tree, base_map, head_tr
         restores = LOWERED in line and line.split(LOWERED)[1][0] in '+~'  # else a lower
         assert ('never raised by hand' in done.stderr) is held
         assert ('lowers below' in done.stderr) is (LOWERED in line)
-        assert ('the bound named above' in done.stderr) is (held and restores)
+        assert ('bound named above for it' in done.stderr) is (held and restores)
         if refused:
             assert ('raises nothing by hand: restore' in done.stderr) is restores
             assert ('only a recorded number: that is what' in done.stderr) is not restores
@@ -100,11 +104,14 @@ def test_a_pending_tighten_binds_the_head(tmp_path, base_tree, base_map, head_tr
     (TOTAL + 2, TOTAL + 2, TOTAL + 5, 'feat', 'tests/: 20 lines above its record of 17'),
     (TOTAL + 2, TOTAL - 1, TOTAL, 'fix', 'tests/: 15 lines above its record of 14'),
     (TOTAL, None, TOTAL, 'fix', 'tests/: the head drops the record (base 15); total 15'),
+    (TOTAL, TOTAL, TOTAL + 5, 'fix', 'tests/: 20 lines above its record of 15'),
+    (TOTAL + 5, None, TOTAL + 5, 'fix', 'tests/: the head drops the record (base total 15); total 20'),
     (TOTAL + 5, TOTAL + 5, TOTAL + 5, 'fix', 'tests/: 20 lines above the base total of 15 (budget 20) without a feature commit.'),
     (TOTAL + 5, TOTAL + 5, TOTAL + 3, 'fix', 'tests/: 18 lines above the base total of 15 (budget 20) without a feature commit.'),
     (TOTAL + 5, TOTAL + 3, TOTAL + 3, 'fix', 'tests/: 18 lines above the base total of 15 (budget 20) without a feature commit.'),
     (TOTAL + 5, None, TOTAL + 5, 'feat', 'tests/: the head drops the record (base total 15); total 20'),
-    (TOTAL + 5, TOTAL + 9, TOTAL + 5, 'fix', 'above the total 20; tighten writes 20 (15, the base total, without a feature commit)'),
+    (TOTAL + 5, TOTAL + 9, TOTAL + 5, 'fix', 'above the total 20; tighten writes 20 (15, the base total, without a feature commit) || '
+     'tests/: 20 lines above the base total of 15 (budget 20) without a feature commit.'),
     (TOTAL + 5, TOTAL + 5, TOTAL + 5, 'feat', None),
     (TOTAL + 5, TOTAL + 5, TOTAL, 'fix', None),
     (TOTAL, TOTAL + 5, TOTAL + 5, 'feat', None),
@@ -119,4 +126,5 @@ def test_a_pending_tighten_binds_a_tree_total(tmp_path, base_budget, budget, tot
     done = check(repo, base, require_tight=tight)
     assert done.returncode == int(line is not None and (tight == 'false' or budget != total)), done.stderr
     if line is not None and tight == 'false':
-        assert line in done.stderr
+        assert all(part in done.stderr for part in line.split(' || '))
+        assert done.stderr.count('above the base total') == line.count('above the base total')
