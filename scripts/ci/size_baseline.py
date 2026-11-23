@@ -33,9 +33,9 @@ LOWER_REMEDY = (
     'shown with only a recorded number: that is what tighten writes.')
 RESTORE_REMEDY = (
     'Putting back what this pull request dropped or lowered raises nothing '
-    'by hand: restore each number shown, or exclude the file, or shrink '
-    'it until tighten writes what the head records (tighten never drops an '
-    "untyped file's record).")
+    'by hand: restore each number shown, or exclude the file or shrink it '
+    'to the head record (its ceiling for a dropped entry) and commit what '
+    "tighten then writes; tighten never drops an untyped file's record.")
 SEED_REMEDY = (
     'Run the action in tighten mode on the proposed head and commit the '
     'records file it writes.')
