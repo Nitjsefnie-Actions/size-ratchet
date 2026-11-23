@@ -183,6 +183,8 @@ def test_a_feature_raise_above_the_head_total_fails(tmp_path):
     assert ('tests/: record raised from 15 to 21, above the total 20; '
             'tighten writes 20') in done.stderr
     strict = check(repo, base, require_tight='true')
+    assert strict.returncode == 1
+    assert 'must record exactly 20; recorded 21' in strict.stderr
     assert 'record raised from' not in strict.stderr
 
 

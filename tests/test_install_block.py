@@ -451,6 +451,6 @@ def test_require_tight_false_refuses_a_record_raised_over_the_base(
     done = pull_request(repo, base, require_tight='false')
     assert done.returncode == int(line is not None), done.stderr
     if line:
-        assert ('raises over the base (any value at or below the base '
-                f'passes), beside what tighten writes:\n    {line}\n') in \
-            done.stderr
+        assert ('raises over the base (keep each at or below its base '
+                'record; drop an entry the base lacks), beside what tighten '
+                f'writes:\n    {line}\n') in done.stderr
