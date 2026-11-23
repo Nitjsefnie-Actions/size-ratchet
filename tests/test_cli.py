@@ -12,6 +12,7 @@ import records  # noqa: E402
 
 from tests.helpers import (add_and_commit, head, make_repo, put_records,  # noqa: E402
                            run_gate)
+from tests.test_trees import validate_only  # noqa: E402
 
 BIG = '\n'.join(f'x{i} = {i}' for i in range(501)) + '\n'  # 501 lines
 OVER = '\n'.join(f'y{i} = {i}' for i in range(600)) + '\n'
@@ -434,7 +435,6 @@ def test_an_escaping_records_path_is_a_configuration_error(tmp_path):
 
 def test_an_unreadable_file_fails_the_run_naming_it(tmp_path):
     import size_baseline
-    from tests.helpers import write_files
     repo = make_repo(tmp_path, {'src/big.py': BIG})
     sha = size_baseline.list_tree(repo, 'HEAD')[0][1]
     loose = repo / '.git' / 'objects' / sha[:2] / sha[2:]
@@ -459,15 +459,8 @@ def test_a_corrupt_records_file_is_a_configuration_error(tmp_path):
     ('records', '../x.json', 'input records'),
 ])
 def test_validate_only_refuses_every_bad_input(tmp_path, name, value, match):
-    import os
-    import subprocess
-    from tests.helpers import ACTION_ROOT
     repo = make_repo(tmp_path, {'src/a.py': 'x\n'})
-    env = dict(os.environ, GITHUB_WORKSPACE=str(repo),
-               **{'SIZE_RATCHET_' + name.upper(): value})
-    done = subprocess.run([sys.executable, '-I', str(ACTION_ROOT / 'run.py'),
-                           '--validate-only'],
-                          env=env, capture_output=True, text=True, timeout=60)
+    done = validate_only(repo, **{name: value})
     assert done.returncode == 2, done.stderr
     assert match in done.stderr
 

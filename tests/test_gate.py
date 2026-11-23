@@ -7,10 +7,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts' / 'ci'))
 import size_baseline  # noqa: E402
 
-from tests.helpers import make_repo  # noqa: E402
+from tests.helpers import git, make_repo  # noqa: E402
 
 BIG = '\n'.join(f'x{i} = {i}' for i in range(501)) + '\n'  # 501 lines
 SMALL = 'a\nb\nc\n'
+POLICY = size_baseline.Policy()  # the defaults; no test changes it
 
 
 def entries_of(repo):
@@ -38,8 +39,7 @@ def test_list_tree_and_measure_over_a_real_tree(tmp_path):
         'src/noeol.js': 'a\nb\nc',
         'src/blob.bin': b'x\0y\n' * 10,
     })
-    policy = size_baseline.Policy()
-    sizes = size_baseline.measure(repo, entries_of(repo), policy, {})
+    sizes = size_baseline.measure(repo, entries_of(repo), POLICY, {})
     assert sizes == {'src/small.py': 3, 'src/big.py': 501, 'src/noeol.js': 3}
     assert 'src/blob.bin' not in sizes
 
@@ -47,11 +47,9 @@ def test_list_tree_and_measure_over_a_real_tree(tmp_path):
 def test_a_symlink_is_never_measured(tmp_path):
     repo = make_repo(tmp_path, {'src/real.py': BIG})
     (repo / 'src' / 'link.py').symlink_to(repo / 'src' / 'real.py')
-    from tests.helpers import git
     git(repo, 'add', 'src/link.py')
     git(repo, 'commit', '-qm', 'link')
-    policy = size_baseline.Policy()
-    sizes = size_baseline.measure(repo, entries_of(repo), policy, {})
+    sizes = size_baseline.measure(repo, entries_of(repo), POLICY, {})
     assert 'src/link.py' not in sizes
 
 
@@ -88,9 +86,8 @@ def test_unreadable_blob_fails_the_run(tmp_path):
     sha = size_baseline.list_tree(repo, 'HEAD')[0][1]
     loose = repo / '.git' / 'objects' / sha[:2] / sha[2:]
     loose.unlink()
-    policy = size_baseline.Policy()
     try:
-        size_baseline.measure(repo, entries_of(repo), policy, {})
+        size_baseline.measure(repo, entries_of(repo), POLICY, {})
     except OSError as failure:
         assert 'src/a.py' in str(failure)
     else:
@@ -98,12 +95,11 @@ def test_unreadable_blob_fails_the_run(tmp_path):
 
 
 def test_ceiling_violations_names_unrecorded_files_above_the_ceiling():
-    policy = size_baseline.Policy()
     sizes = {'src/big.py': 501, 'src/small.py': 500}
-    assert size_baseline.ceiling_violations(sizes, {}, policy) == \
+    assert size_baseline.ceiling_violations(sizes, {}, POLICY) == \
         {'src/big.py': (501, 500)}
     assert size_baseline.ceiling_violations(
-        sizes, {'src/big.py': 501}, policy) == {}
+        sizes, {'src/big.py': 501}, POLICY) == {}
 
 
 def test_record_states_covers_every_verdict():
@@ -125,32 +121,28 @@ def test_record_states_covers_every_verdict():
 
 
 def test_an_untyped_record_never_graduates():
-    policy = size_baseline.Policy()
     states = size_baseline.record_states(
-        {'data.rst': 5}, {'data.rst': 900}, policy)
+        {'data.rst': 5}, {'data.rst': 900}, POLICY)
     assert states == {'data.rst': ('shrunk', (5, 900))}
 
 
 def test_a_file_at_its_record_is_not_grown():
-    policy = size_baseline.Policy()
     states = size_baseline.record_states({'src/a.py': 501},
-                                         {'src/a.py': 501}, policy)
+                                         {'src/a.py': 501}, POLICY)
     assert states == {'src/a.py': ('same', (501, 501))}
 
 
 def test_a_file_at_its_record_but_below_the_ceiling_is_graduated():
-    policy = size_baseline.Policy()
     states = size_baseline.record_states({'src/a.py': 490},
-                                         {'src/a.py': 490}, policy)
+                                         {'src/a.py': 490}, POLICY)
     assert states == {'src/a.py': ('graduated', (490, 490))}
 
 
 def test_tighten_seeds_only_files_over_their_ceiling(tmp_path):
     repo = make_repo(tmp_path, {'src/at.py': 'x\n' * 500, 'src/over.py': BIG,
                                 'src/under.py': SMALL})
-    policy = size_baseline.Policy()
-    sizes = size_baseline.measure(repo, entries_of(repo), policy, {})
-    assert size_baseline.tightened(None, sizes, policy) == {'src/over.py': 501}
+    sizes = size_baseline.measure(repo, entries_of(repo), POLICY, {})
+    assert size_baseline.tightened(None, sizes, POLICY) == {'src/over.py': 501}
 
 
 def test_tighten_seeding_ignores_untyped_and_excluded_files(tmp_path):
@@ -163,12 +155,11 @@ def test_tighten_seeding_ignores_untyped_and_excluded_files(tmp_path):
 
 
 def test_tighten_lowers_a_shrunk_record_and_drops_a_graduated_one():
-    policy = size_baseline.Policy()
     sizes = {'src/shrunk.py': 600, 'src/graduated.py': 400,
              'src/same.py': 900}
     baseline = {'src/shrunk.py': 900, 'src/graduated.py': 900,
                 'src/same.py': 900}
-    assert size_baseline.tightened(baseline, sizes, policy) == \
+    assert size_baseline.tightened(baseline, sizes, POLICY) == \
         {'src/shrunk.py': 600, 'src/same.py': 900}
 
 
@@ -182,17 +173,15 @@ def test_tighten_drops_deleted_and_excluded_entries():
 
 
 def test_tighten_never_raises_a_record():
-    policy = size_baseline.Policy()
     sizes = {'src/grown.py': 950}
     baseline = {'src/grown.py': 900}
-    assert size_baseline.tightened(baseline, sizes, policy) is None
+    assert size_baseline.tightened(baseline, sizes, POLICY) is None
 
 
 def test_tighten_keeps_an_untyped_record_lowered_to_its_count():
-    policy = size_baseline.Policy()
     sizes = {'data.rst': 300}
     baseline = {'data.rst': 900}
-    assert size_baseline.tightened(baseline, sizes, policy) == \
+    assert size_baseline.tightened(baseline, sizes, POLICY) == \
         {'data.rst': 300}
 
 
@@ -201,21 +190,18 @@ def test_tighten_never_adds_an_entry_after_seeding():
     # additions happen only when seeding. The file fails check instead,
     # until it is excluded or shrunk. A no-change tighten returns None, and
     # the mutant that adds the entry returns the map instead.
-    policy = size_baseline.Policy()
     baseline = {'src/a.py': 900}
     sizes = {'src/a.py': 900, 'src/new.py': 700}
-    assert size_baseline.tightened(baseline, sizes, policy) is None
+    assert size_baseline.tightened(baseline, sizes, POLICY) is None
 
 
 def test_tighten_never_raises_a_grown_record():
-    policy = size_baseline.Policy()
     baseline = {'src/a.py': 600}
     sizes = {'src/a.py': 700}
-    assert size_baseline.tightened(baseline, sizes, policy) is None
+    assert size_baseline.tightened(baseline, sizes, POLICY) is None
 
 
 def test_tighten_returns_none_when_nothing_would_change():
-    policy = size_baseline.Policy()
     baseline = {'src/a.py': 501}
     sizes = {'src/a.py': 501}
-    assert size_baseline.tightened(baseline, sizes, policy) is None
+    assert size_baseline.tightened(baseline, sizes, POLICY) is None

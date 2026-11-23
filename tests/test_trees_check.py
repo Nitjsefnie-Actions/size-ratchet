@@ -30,8 +30,11 @@ def base_without_the_folder(repo):
     return put(repo, {'docs/': 3}, {})
 
 
-@pytest.mark.parametrize('make_base', [
+EVERY_BASE = pytest.mark.parametrize('make_base', [
     base_without_records, base_without_trees, base_without_the_folder])
+
+
+@EVERY_BASE
 def test_an_exact_seed_passes_without_a_feature_commit(tmp_path, make_base):
     repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
     base = make_base(repo)
@@ -41,8 +44,7 @@ def test_an_exact_seed_passes_without_a_feature_commit(tmp_path, make_base):
     assert '1 tree budgets hold' in done.stdout
 
 
-@pytest.mark.parametrize('make_base', [
-    base_without_records, base_without_trees, base_without_the_folder])
+@EVERY_BASE
 @pytest.mark.parametrize('trees,shown', [
     ({'tests/': TOTAL + 1}, 'record 16'),
     ({'tests/': TOTAL - 1}, 'record 14'),
@@ -57,8 +59,7 @@ def test_a_seed_off_the_total_fails(tmp_path, make_base, trees, shown):
             f'seed tighten writes: total 15, {shown}') in done.stderr
 
 
-@pytest.mark.parametrize('make_base', [
-    base_without_records, base_without_trees, base_without_the_folder])
+@EVERY_BASE
 @pytest.mark.parametrize('require_tight', ['false', 'true'])
 @pytest.mark.parametrize('trim', [0, 1])
 def test_no_head_entry_passes_while_the_base_total_holds(
@@ -72,8 +73,7 @@ def test_no_head_entry_passes_while_the_base_total_holds(
     assert '1 tree budgets hold' in done.stdout
 
 
-@pytest.mark.parametrize('make_base', [
-    base_without_records, base_without_trees, base_without_the_folder])
+@EVERY_BASE
 def test_no_head_entry_fails_past_the_base_total(tmp_path, make_base):
     repo = make_repo(tmp_path, {**TREE, 'docs/a.md': 'd\n' * 3})
     base = make_base(repo)
