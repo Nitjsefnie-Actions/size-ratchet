@@ -28,7 +28,8 @@
         35.47
       ],
       "tests/test_pending.py": [
-        53.92
+        53.92,
+        74.42
       ],
       "tests/test_policy.py": [
         2.56,
@@ -80,7 +81,8 @@
         15.01
       ],
       "tests/test_pending.py": [
-        22.03
+        22.03,
+        31.21
       ],
       "tests/test_policy.py": [
         0.88
