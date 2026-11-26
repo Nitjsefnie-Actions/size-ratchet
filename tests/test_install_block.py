@@ -135,13 +135,17 @@ def test_a_push_run_cancels_no_other_commit_s_run():
     assert install_block()['concurrency']['cancel-in-progress'] is True
 
 
-def test_the_block_matches_the_action_defaults():
+def test_the_block_shows_every_input_and_the_consumer_tree_budget():
     inputs = yaml.safe_load((ACTION_ROOT / 'action.yml').read_text())['inputs']
     shown = block_with_inputs()
     assert set(shown) == set(inputs)
     for name, spec in inputs.items():
-        if name != 'push-key':
+        if name not in ('push-key', 'tree-budgets'):
             assert shown[name] == spec['default'], name
+            continue
+        if name == 'tree-budgets':
+            assert inputs[name]['default'] == ''
+            assert shown[name] == 'tests/'
     assert inputs['push-key']['default'] == ''
     assert shown['push-key'] == '${{ secrets.MASTER_PUSH_DEPLOY_KEY }}'
 
