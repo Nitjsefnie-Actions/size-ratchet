@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
-    # The fleet's floor; the groups below open two.
+    # The fleet's cap; the groups below open two.
     open-pull-requests-limit: 5
     schedule:
       interval: weekly
