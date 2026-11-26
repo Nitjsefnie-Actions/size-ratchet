@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Fail when README.md's install pin is more than one release behind.
 
-A release tags the default branch's tip after the commit carrying the
-README has merged, so the README cannot name it until a later commit; the
-newest release or the one before it is current, and anything older is not.
-Exit 0 when the pin is current, 1 when it is behind or malformed.
+A release tags main's tip after the commit carrying the README merged, so
+the README cannot name it until a later commit: the newest release or the
+one before it is current.
 """
 from __future__ import annotations
 
