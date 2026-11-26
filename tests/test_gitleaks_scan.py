@@ -87,7 +87,7 @@ class Scan(unittest.TestCase):
         arguments, _, config = self.seen()
         self.assertEqual(config, BASE_CONFIG)
         self.assertIn('--config', arguments)
-        self.assertLessEqual({'--ignore-gitleaks-allow', '--log-opts=--full-history --all --diff-filter=uxdb'}, set(arguments))
+        self.assertLessEqual({'--ignore-gitleaks-allow', '--log-opts=--full-history --all --diff-filter=uxdb --diff-merges=remerge'}, set(arguments))
         chosen = pathlib.Path(arguments[arguments.index('--config') + 1])
         self.assertTrue(chosen.is_absolute(), chosen)
         self.assertFalse(chosen.resolve().is_relative_to(self.work.resolve()), chosen)
