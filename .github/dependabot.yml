@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    # The fleet's floor; the groups below open two.
+    open-pull-requests-limit: 5
     schedule:
       interval: weekly
       day: wednesday
@@ -30,6 +32,7 @@ updates:
           - "*"
   - package-ecosystem: pip
     directory: "/.github/workflows"
+    open-pull-requests-limit: 5
     schedule:
       interval: weekly
       day: wednesday
@@ -41,6 +44,8 @@ updates:
     # release carrying a fixed CVE cannot land until someone remembers to
     # regenerate the hashes by hand. The `pip` ecosystem does rewrite the
     # `--hash` lines with the version.
+    #
+    # `ci`, not the fleet's `build`: CONTRIBUTING.md lists no `build` type.
     commit-message:
       prefix: ci
       include: scope
