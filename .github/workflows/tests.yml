@@ -18,12 +18,14 @@ on:
     # Default branch only: a pull-request head already gets one run from
     # the `pull_request` event below, and an unfiltered `push` schedules
     # the same commit a second time under a different ref, which the
-    # `concurrency` group cannot collapse. There is no workflow_dispatch:
-    # the size-baseline job runs the install block, whose
-    # steps' `if` names only pull requests and default-branch pushes, and
-    # a completed run reruns from its own run page.
+    # `concurrency` group cannot collapse.
     branches: [main]
   pull_request:
+  # Manual runs re-check main without a push. The size-baseline job's steps'
+  # `if` names only pull requests and default-branch pushes, so a run on any
+  # other ref completes that job green without measuring, as on any other
+  # event.
+  workflow_dispatch:
 
 # Least privilege: this job only reads the tree. Without an explicit
 # block it inherits the repository default, which can be read/write
