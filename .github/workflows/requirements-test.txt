@@ -10,14 +10,10 @@ packaging==26.4 --hash=sha256:81383611a09c1bc0b08b76e0fd5829d7c6824c65b27a6aee33
 Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
 
 # PyYAML for the tests that read action.yml and the workflows: every
-# PyPI release wheel for Linux and macOS, CPython 3.8-3.14, plus the
-# sdist -- PyYAML ships no CPython 3.15 wheel, so the 3.15 suite legs
-# build it from the hash-pinned sdist (--no-binary=PyYAML, the one
-# source build the installs allow). Every other package's missing
-# compatible wheel still fails instead of building unpinned tooling.
-# Retire the exception when a PyYAML release ships CPython 3.15
-# wheels: update its version and wheel hashes, then drop the
-# --no-binary=PyYAML exceptions and the sdist hash.
+# PyPI release wheel for Linux and macOS. The 3.15 suite legs resolve its
+# CPython 3.15 wheel, and --only-binary=:all: keeps any package whose
+# compatible wheel is missing a loud failure rather than an unpinned
+# source build.
 PyYAML==6.0.4 \
     --hash=sha256:070c22b6f490d6cc30912be9fb9ab1af9c752769b39b53616f6510c3f038ee6a \
     --hash=sha256:0a3a351f04dc124f9357512bdb80ac37cd1750cf1371da33e7cbb96d80ac865f \
@@ -86,7 +82,6 @@ PyYAML==6.0.4 \
     --hash=sha256:c680622f85979f2ff59b4ae44c1ecb5566b2f0f0ffe5d0dc8b4bb6a0e916dabb \
     --hash=sha256:d276f23e2371deb5ee68dd252cc9c2402b806b54d8d2cc7efbb6c34c3a78d886 \
     --hash=sha256:d58fe9fa2056fed24f055b74d5dc808fa1f5d084c22e4118f0a08253fe677ffd \
-    --hash=sha256:e24bf71af8a432d7808fabff134d38dfe16d3cbb41f2873bb4b1e42422de0a1a \
     --hash=sha256:e39017e1cef43d03b2ba427f60213e4b36dbc6fb092235fa3de3a510ce064d3c \
     --hash=sha256:e956541cc7a3fff2bb5b17aeb6c5bb42c86c8e6dafb5ebdd41a05e72e702076b \
     --hash=sha256:ed9b957abb12f6ffcd92d5db32fa3ffd4e4a8423d80ddd51b4efa63b42f6a76b \

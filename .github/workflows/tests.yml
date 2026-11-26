@@ -182,10 +182,9 @@ jobs:
         # install, not the image's externally managed (PEP 668) system
         # python, so pip may install into it. --require-hashes pins
         # artifacts as well as versions; --only-binary keeps an absent
-        # wheel a loud failure rather than an unpinned source build;
-        # PyYAML alone builds the hash-pinned sdist (no 3.15 wheel).
+        # wheel a loud failure rather than an unpinned source build.
         run: |
-          python3 -m pip install --require-hashes --only-binary=:all: --no-binary=PyYAML -r .github/workflows/requirements-test.txt
+          python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements-test.txt
 
       # The cell is the OS and the Python minor, as the floor's record names
       # it, so a second minor gets its own timing and coverage records
