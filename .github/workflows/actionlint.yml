@@ -90,11 +90,13 @@ jobs:
       - name: Install actionlint
         # Downloaded and checksum-verified rather than piped from the
         # install script: `curl | bash` would make this job trust whatever
-        # that URL serves at run time.
+        # that URL serves at run time. download.sh retries the release
+        # fetch with backoff and refuses an empty file.
         run: |
           tarball="actionlint_${SIZE_RATCHET_ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$tarball" \
-            "https://github.com/${SIZE_RATCHET_ACTIONLINT_REPO}/releases/download/v${SIZE_RATCHET_ACTIONLINT_VERSION}/${tarball}"
+          .github/scripts/download.sh \
+            "https://github.com/${SIZE_RATCHET_ACTIONLINT_REPO}/releases/download/v${SIZE_RATCHET_ACTIONLINT_VERSION}/${tarball}" \
+            "$tarball"
           echo "${SIZE_RATCHET_ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
           tar -xzf "$tarball" actionlint
           ./actionlint --version
@@ -103,12 +105,15 @@ jobs:
         id: install_zizmor
         # --require-hashes verifies every artifact against the sha256 in
         # requirements.txt: a version pin alone still installs whatever
-        # artifact the index serves for that version. The `--upgrade pip`
-        # line is gone for the same reason -- it installed whatever bytes
-        # the index served, unpinned, and the runner's preinstalled pip is
-        # far newer than --require-hashes needs.
+        # artifact the index serves for that version. --only-binary=:all:
+        # makes a missing wheel a loud failure rather than a source build
+        # this job never reviewed. retry.sh backs off over an index outage,
+        # which says nothing about the workflows being linted. The
+        # `--upgrade pip` line is gone for the same reason -- it installed
+        # whatever bytes the index served, unpinned, and the pip
+        # setup-python provides is far newer than --require-hashes needs.
         run: |
-          python3 -m pip install --require-hashes -r .github/workflows/requirements.txt
+          .github/scripts/retry.sh python3 -m pip install --require-hashes --only-binary=:all: -r .github/workflows/requirements.txt
 
       - name: actionlint
         id: actionlint

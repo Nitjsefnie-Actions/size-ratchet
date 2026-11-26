@@ -78,8 +78,11 @@ jobs:
       - name: Install pip-audit
         # From the manifest, not an inline pin: Dependabot's pip ecosystem
         # reads manifest files, never a `run:` block, so the inline pin could
-        # only go stale unnoticed.
-        run: python -m pip install -r .github/workflows/requirements-pip-audit.txt
+        # only go stale unnoticed. retry.sh backs off over an index
+        # outage, and --only-binary=:all: keeps a missing wheel loud.
+        run: |
+          .github/scripts/retry.sh python3 -m pip install --only-binary=:all: \
+            -r .github/workflows/requirements-pip-audit.txt
 
       - name: Audit dependencies
         # The glob is evaluated at run time on purpose: a requirements*.txt
