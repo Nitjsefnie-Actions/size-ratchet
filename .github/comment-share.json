@@ -24,12 +24,12 @@
     1587
   ],
   ".github/workflows/secrets.yml": [
-    2162,
-    2863
+    1848,
+    2624
   ],
   ".github/workflows/tests.yml": [
-    6662,
-    11188
+    5744,
+    9880
   ],
   "run.py": [
     675,
