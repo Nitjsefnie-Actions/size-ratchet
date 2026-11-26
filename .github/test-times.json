@@ -25,6 +25,9 @@
       "tests/test_gate.py": [
         1.43
       ],
+      "tests/test_gitleaks_scan.py": [
+        3.21
+      ],
       "tests/test_install_block.py": [
         13.73,
         22.78,
@@ -43,8 +46,14 @@
         13.73,
         19.25
       ],
+      "tests/test_readme_pin.py": [
+        0.01
+      ],
       "tests/test_records.py": [
         1.01
+      ],
+      "tests/test_release_dispatch.py": [
+        0.82
       ],
       "tests/test_trees.py": [
         10.11,
@@ -56,7 +65,8 @@
         65.52
       ],
       "tests/test_trees_push.py": [
-        25.35
+        25.35,
+        17.85
       ]
     },
     "ubuntu-latest-py3.15": {
@@ -80,6 +90,9 @@
       "tests/test_gate.py": [
         0.21
       ],
+      "tests/test_gitleaks_scan.py": [
+        1.21
+      ],
       "tests/test_install_block.py": [
         5.83,
         9.37,
@@ -97,8 +110,14 @@
         6.15,
         9.01
       ],
+      "tests/test_readme_pin.py": [
+        0.02
+      ],
       "tests/test_records.py": [
         0.36
+      ],
+      "tests/test_release_dispatch.py": [
+        0.58
       ],
       "tests/test_trees.py": [
         7.16,
