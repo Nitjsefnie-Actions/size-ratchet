@@ -23,6 +23,7 @@ tests/*
 !tests/test_*.py
 !tests/gate_base_freshness.py
 !tests/commit_scopes.py
+!tests/gate_readme_pin.py
 !.github/
 .github/*
 !.github/PULL_REQUEST_TEMPLATE.md
@@ -30,6 +31,9 @@ tests/*
 !.github/ISSUE_TEMPLATE/
 .github/ISSUE_TEMPLATE/*
 !.github/ISSUE_TEMPLATE/issue.md
+!.github/scripts/
+.github/scripts/*
+!.github/scripts/*.sh
 !.github/size-baseline.json
 !.github/comment-share.json
 !.github/ci-thresholds.json
