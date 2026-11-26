@@ -35,12 +35,10 @@ on:
     # `concurrency` group cannot collapse.
     branches: [main]
     # Deny-list, not an allow-list: under an allow-list, a new path this gate
-    # should read silently stops triggering it. The job reads every
-    # .github/workflows/*.yml, .github/workflows/requirements.txt (the
-    # hash-pinned zizmor install), and action.yml (linted and zizmor-audited
-    # via the generated workflow), so none of those belongs in a skip list.
-    # The five names below are documentation nothing in this job reads.
-    paths-ignore: [README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
+    # should read silently stops triggering it. The job reads the workflows,
+    # the hash-pinned requirements.txt, action.yml, README.md (the pin gate)
+    # and tests/gate_readme_pin.py, so none of those belongs in a skip list.
+    paths-ignore: [CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
   # Deliberately unfiltered by path. This job is not a required status
   # context; it reports independently of the `aggregate` check. The job is
   # seconds long, so running it on every pull request is cheaper than
@@ -82,6 +80,12 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.15"
+
+      - name: Check the README install pin is the newest release
+        # Dependabot bumps the workflows' `uses:` pins and never markdown.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tests/gate_readme_pin.py
 
       - name: Install actionlint
         # Downloaded and checksum-verified rather than piped from the
