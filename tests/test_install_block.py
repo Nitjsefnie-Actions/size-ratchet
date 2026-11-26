@@ -169,7 +169,7 @@ def test_the_own_gate_mirrors_the_block():
                       ['size-baseline']['steps']
                       if step.get('uses', '').startswith('actions/checkout')][0]
     assert checkout['with'] == block_checkout['with']
-    assert 'workflow_dispatch' not in tests_yml[True]
+    assert 'workflow_dispatch' in tests_yml[True]
 
 
 # --- the block's inputs, driven end to end -------------------------------
