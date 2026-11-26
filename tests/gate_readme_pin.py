@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Fail when README.md's install pin is behind the newest release.
+"""Fail when README.md's install pin is more than one release behind.
 
 A release tags the default branch's tip after the commit carrying the
-README has merged, so on that one tree the release before it is current.
+README has merged, so the README cannot name it until a later commit; the
+newest release or the one before it is current, and anything older is not.
 Exit 0 when the pin is current, 1 when it is behind or malformed.
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ def parse(text):
     return (sha, rest.strip()), None
 
 
-def verdict(text, releases, tip, resolve):
+def verdict(text, releases, resolve):
     """(ok, message) for a pinned SHA; releases are tags, newest first."""
     pinned, problem = parse(text)
     if problem:
@@ -33,15 +34,10 @@ def verdict(text, releases, tip, resolve):
     sha, comment = pinned
     if not releases:
         return False, 'no published release to compare the README pin with'
-    newest = releases[0]
-    newest_sha = resolve(newest)
-    accepted = None
-    if sha == newest_sha:
-        accepted = newest
-    elif len(releases) > 1 and newest_sha == tip and sha == resolve(releases[1]):
-        accepted = releases[1]
+    accepted = next((tag for tag in releases if sha == resolve(tag)), None)
     if accepted is None:
-        return False, f'README.md pins {sha}, but the newest release is {newest} ({newest_sha})'
+        newest = releases[0]
+        return False, f'README.md pins {sha}, but the newest release is {newest} ({resolve(newest)})'
     if comment != f'# {accepted}':
         return False, f'README.md pins {accepted} but its comment reads {comment!r}'
     return True, f'README.md pins {accepted}'
@@ -63,8 +59,6 @@ def main():
     releases = [release['tag_name']
                 for release in _gh(f'repos/{repository}/releases?per_page=10')
                 if not release['draft'] and not release['prerelease']][:2]
-    tip = _gh(f'repos/{repository}/commits/'
-              f'{_gh(f"repos/{repository}")["default_branch"]}')['sha']
     shas = {}
 
     def resolve(tag):
@@ -73,7 +67,7 @@ def main():
         return shas[tag]
 
     ok, message = verdict(Path('README.md').read_text(encoding='utf-8'),
-                          releases, tip, resolve)
+                          releases, resolve)
     print(message, file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1
 

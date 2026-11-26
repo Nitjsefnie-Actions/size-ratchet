@@ -1,16 +1,15 @@
-"""The README pin gate: which release counts as current, and which does not."""
+"""The README pin gate: which releases count as current, and what main does."""
 from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NEWEST_SHA = '1' * 40
-PREVIOUS_SHA = '2' * 40
-OLDER_SHA = '3' * 40
-TIP = '4' * 40
-RELEASES = ('v4.0.4', 'v4.0.3', 'v4.0.2')
-SHAS = {'v4.0.4': NEWEST_SHA, 'v4.0.3': PREVIOUS_SHA, 'v4.0.2': OLDER_SHA}
+REPO = 'owner/repo'
+NEWEST_SHA, PREVIOUS_SHA, OLDER_SHA, DRAFT_SHA = '1' * 40, '2' * 40, '3' * 40, '4' * 40
+SHAS = {'v4.0.5': DRAFT_SHA, 'v4.0.4': NEWEST_SHA, 'v4.0.3': PREVIOUS_SHA,
+        'v4.0.2': OLDER_SHA}
+RELEASES = ('v4.0.4', 'v4.0.3')
 
 
 def _load():
@@ -23,17 +22,12 @@ def _load():
 
 
 def _readme(sha=NEWEST_SHA, tag='v4.0.4', indent='        '):
-    return (f'```yaml\n{indent}uses: Nitjsefnie-Actions/size-ratchet@{sha} # {tag}\n```\n')
+    return f'```yaml\n{indent}uses: Nitjsefnie-Actions/size-ratchet@{sha} # {tag}\n```\n'
 
 
-def _verdict(module, text, *, tip=TIP, releases=RELEASES):
-    resolved = []
-
-    def resolve(tag):
-        resolved.append(tag)
-        return SHAS[tag]
-
-    return module.verdict(text, list(releases), tip, resolve)
+def _verdict(module, text, releases=RELEASES, resolve=None):
+    resolve = resolve or (lambda tag: SHAS[tag])
+    return module.verdict(text, list(releases), resolve)
 
 
 def test_the_newest_release_pinned_with_its_tag_passes():
@@ -41,39 +35,27 @@ def test_the_newest_release_pinned_with_its_tag_passes():
     assert _verdict(module, _readme()) == (True, 'README.md pins v4.0.4')
 
 
-def test_a_release_behind_fails_and_names_the_sha():
+def test_one_release_of_lag_is_accepted_and_two_are_not():
     module = _load()
-    ok, message = _verdict(module, _readme(PREVIOUS_SHA, 'v4.0.3'))
-    assert not ok and PREVIOUS_SHA in message and 'v4.0.4' in message
-    ok, message = _verdict(module, _readme(OLDER_SHA, 'v4.0.2'))
-    assert not ok and 'v4.0.4' in message
-
-
-def test_the_release_before_is_current_only_on_the_newest_release_s_own_tree():
-    module = _load()
-    # The newest release tags the tip, so its commit carries the README a
-    # release behind: accepted there and nowhere else.
-    assert _verdict(module, _readme(PREVIOUS_SHA, 'v4.0.3'), tip=NEWEST_SHA)[0]
-    ok, message = _verdict(module, _readme(PREVIOUS_SHA, 'v4.0.3'))
-    assert not ok and 'v4.0.4' in message
-    # A tree that already carries the newest pin stays current at the tip.
-    assert _verdict(module, _readme(), tip=NEWEST_SHA)[0]
+    assert _verdict(module, _readme(PREVIOUS_SHA, 'v4.0.3')) == \
+        (True, 'README.md pins v4.0.3')
+    for sha, tag in ((OLDER_SHA, 'v4.0.2'), ('9' * 40, 'v4.0.4')):
+        ok, message = _verdict(module, _readme(sha, tag))
+        assert not ok and sha in message and 'v4.0.4' in message
 
 
 def test_the_comment_must_name_the_release_the_sha_belongs_to():
     module = _load()
-    ok, message = _verdict(module, _readme(NEWEST_SHA, 'v4.0.3'))
-    assert not ok and 'comment' in message
-    ok, message = _verdict(module, _readme(NEWEST_SHA, ''))
-    assert not ok and 'comment' in message
+    for tag in ('v4.0.3', '', 'v4.0.4 (latest)'):
+        ok, message = _verdict(module, _readme(NEWEST_SHA, tag))
+        assert not ok and 'comment' in message
 
 
 def test_a_second_pin_line_refuses_before_any_lookup():
     module = _load()
-    text = _readme() + _readme(PREVIOUS_SHA, 'v4.0.3')
     resolved = []
-    ok, message = module.verdict(text, list(RELEASES), TIP,
-                                 lambda tag: resolved.append(tag) or SHAS[tag])
+    ok, message = module.verdict(_readme() + _readme(PREVIOUS_SHA, 'v4.0.3'),
+                                 list(RELEASES), lambda tag: resolved.append(tag) or SHAS[tag])
     assert not ok and 'exactly one' in message
     assert resolved == []
 
@@ -89,6 +71,65 @@ def test_the_pin_and_its_comment_are_read_off_the_line():
     assert module.parse(_readme()) == ((NEWEST_SHA, '# v4.0.4'), None)
     assert module.parse(_readme(indent='')) == ((NEWEST_SHA, '# v4.0.4'), None)
     assert module.parse('nothing here\n')[1].startswith('expected exactly one')
-    # No comment at all is a refusal from the verdict, not a parse error.
     assert module.parse(f'uses: Nitjsefnie-Actions/size-ratchet@{NEWEST_SHA}\n') \
         == ((NEWEST_SHA, ''), None)
+
+
+def _published(*tags):
+    return [{'tag_name': tag, 'draft': False, 'prerelease': False} for tag in tags]
+
+
+def _drive(tmp_path, monkeypatch, module, text, releases, repository=REPO):
+    (tmp_path / 'README.md').write_text(text, encoding='utf-8')
+    if repository is None:
+        monkeypatch.delenv('GITHUB_REPOSITORY', raising=False)
+    else:
+        monkeypatch.setenv('GITHUB_REPOSITORY', repository)
+    calls = []
+
+    def fake(endpoint):
+        calls.append(endpoint)
+        if '/releases?' in endpoint:
+            return releases
+        return {'sha': SHAS[endpoint.rsplit('/', 1)[1]]}
+
+    monkeypatch.setattr(module, '_gh', fake)
+    monkeypatch.chdir(tmp_path)
+    return module.main(), calls
+
+
+def test_main_passes_a_current_pin_and_fails_a_stale_one(tmp_path, monkeypatch, capsys):
+    module = _load()
+    code, _ = _drive(tmp_path, monkeypatch, module, _readme(), _published('v4.0.4'))
+    assert code == 0 and 'pins v4.0.4' in capsys.readouterr().out
+    code, _ = _drive(tmp_path, monkeypatch, module, _readme(OLDER_SHA, 'v4.0.2'),
+                     _published('v4.0.4', 'v4.0.3', 'v4.0.2'))
+    assert code == 1 and 'v4.0.4' in capsys.readouterr().err
+
+
+def test_main_reads_only_the_two_newest_releases(tmp_path, monkeypatch):
+    module = _load()
+    # The previous release is current; a third entry is never considered.
+    code, _ = _drive(tmp_path, monkeypatch, module, _readme(PREVIOUS_SHA, 'v4.0.3'),
+                     _published('v4.0.4', 'v4.0.3', 'v4.0.2'))
+    assert code == 0
+    code, _ = _drive(tmp_path, monkeypatch, module, _readme(OLDER_SHA, 'v4.0.2'),
+                     _published('v4.0.4', 'v4.0.3', 'v4.0.2'))
+    assert code == 1
+
+
+def test_main_does_not_count_a_draft_or_prerelease_as_newest(tmp_path, monkeypatch):
+    module = _load()
+    releases = [{'tag_name': 'v4.0.5', 'draft': True, 'prerelease': False},
+                {'tag_name': 'v4.0.4', 'draft': False, 'prerelease': True},
+                *_published('v4.0.3')]
+    code, _ = _drive(tmp_path, monkeypatch, module, _readme(DRAFT_SHA, 'v4.0.5'), releases)
+    assert code == 1
+
+
+def test_main_refuses_without_a_repository_or_a_read(tmp_path, monkeypatch, capsys):
+    module = _load()
+    code, calls = _drive(tmp_path, monkeypatch, module, _readme(), _published('v4.0.4'),
+                         repository=None)
+    assert code == 1 and calls == []
+    assert 'GITHUB_REPOSITORY is unset' in capsys.readouterr().err
