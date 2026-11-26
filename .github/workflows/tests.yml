@@ -185,14 +185,15 @@ jobs:
         run: |
           python3 -m pip install --require-hashes --only-binary=:all: --no-binary=PyYAML -r .github/workflows/requirements-test.txt
 
-      # The cell is the OS alone, as the floor's record names it: Python is
-      # one minor on both legs.
+      # The cell is the OS and the Python minor, as the floor's record names
+      # it, so a second minor gets its own timing and coverage records
+      # instead of overwriting this one.
       - uses: Nitjsefnie-Actions/test-ratchet/run@96562a47e9b7fe74b55cc70a4636d1b5d7b542e2 # v2.4.2
         with:
           runner: pytest
           tests: tests/**/test_*.py
           times: .github/test-times.json
-          cell: ${{ matrix.os }}
+          cell: ${{ matrix.os }}-py3.15
           shard: ${{ matrix.shard }}
 
   report:
@@ -215,7 +216,7 @@ jobs:
       - uses: Nitjsefnie-Actions/test-ratchet/report@96562a47e9b7fe74b55cc70a4636d1b5d7b542e2 # v2.4.2
         with:
           github-token: ${{ github.token }}
-          cell: ubuntu-latest
+          cell: ubuntu-latest-py3.15
           times: .github/test-times.json
           push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
 

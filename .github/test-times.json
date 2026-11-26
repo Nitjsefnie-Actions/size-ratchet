@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "cells": {
-    "macos-latest": {
+    "macos-latest-py3.15": {
       "tests/test_action.py": [
         2.55,
         3.99
@@ -59,7 +59,7 @@
         25.35
       ]
     },
-    "ubuntu-latest": {
+    "ubuntu-latest-py3.15": {
       "tests/test_action.py": [
         1.28
       ],

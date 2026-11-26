@@ -103,7 +103,7 @@ there.
 The coverage floor and the per-file test times are committed by the
 tests workflow's `report` job, which runs the `report` sub-action of
 [test-ratchet](https://github.com/Nitjsefnie-Actions/test-ratchet). It
-gates the `ubuntu-latest` cell's merged coverage against the floor in
+gates the `ubuntu-latest-py3.15` cell's merged coverage against the floor in
 `.github/ci-thresholds.json` at the pull request's base, so a pull request
 that lowers the floor in its own file is still gated by its base's. The
 records move only on a push to main whose gate passed and whose artifacts
