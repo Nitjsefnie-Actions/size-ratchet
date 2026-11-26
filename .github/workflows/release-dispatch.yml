@@ -1,0 +1,78 @@
+name: release dispatch
+
+# A dispatch on main taking the version to cut: validate it as the next
+# semver successor of the newest tag, wait for the required push checks on
+# main's SHA, then tag and release with generated notes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (for example, 2.1.1)'
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-dispatch
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    outputs:
+      sha: ${{ steps.verify.outputs.sha }}
+    steps:
+      - name: Refuse a dispatch that is not on main
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo 'Release dispatch requires the main branch.' >&2
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      # Only a successful required push check on main's own SHA counts.
+      - name: Validate the version and wait for required push checks
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIZE_RATCHET_REPOSITORY: ${{ github.repository }}
+          SIZE_RATCHET_VERSION: ${{ inputs.version }}
+        run: python scripts/ci/release_dispatch.py verify "$SIZE_RATCHET_REPOSITORY" "$SIZE_RATCHET_VERSION"
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Refuse a dispatch that is not on main
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo 'Release dispatch requires the main branch.' >&2
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Create the annotated tag and release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIZE_RATCHET_REPOSITORY: ${{ github.repository }}
+          SIZE_RATCHET_VERSION: ${{ inputs.version }}
+          SIZE_RATCHET_RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+        run: python scripts/ci/release_dispatch.py publish "$SIZE_RATCHET_REPOSITORY" "$SIZE_RATCHET_VERSION" "$SIZE_RATCHET_RELEASE_SHA"
