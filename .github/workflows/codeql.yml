@@ -45,9 +45,10 @@ jobs:
     timeout-minutes: 15
 
     permissions:
-      # Writing the analysis results is the whole point; everything else
-      # stays read-only.
+      # Writing the analysis results is the point; the rest is read-only.
       security-events: write
+      # `actions` reads workflow runs.
+      actions: read
       contents: read
 
     strategy:
