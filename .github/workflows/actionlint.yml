@@ -36,8 +36,9 @@ on:
     branches: [main]
     # Deny-list, not an allow-list: under an allow-list, a new path this gate
     # should read silently stops triggering it. The job reads the workflows,
-    # the hash-pinned requirements.txt, action.yml, README.md (the pin gate)
-    # and tests/gate_readme_pin.py, so none of those belongs in a skip list.
+    # the hash-pinned requirements.txt, action.yml, README.md (the pin gate),
+    # tests/gate_readme_pin.py and the .github/scripts it runs, so none of
+    # those belongs in a skip list.
     paths-ignore: [CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE]
   # Deliberately unfiltered by path. This job is not a required status
   # context; it reports independently of the `aggregate` check. The job is
