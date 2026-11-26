@@ -25,4 +25,4 @@ rm -f -- .gitleaksignore
 git show "${remote}:.gitleaksignore" > .gitleaksignore 2>/dev/null || rm -f -- .gitleaksignore
 printf '* diff\n' > "$(git rev-parse --git-path info/attributes)"
 ./gitleaks detect --verbose --redact --ignore-gitleaks-allow --config "$config" \
-  --log-opts='--full-history --all --diff-filter=uxdb'
+  --log-opts='--full-history --all --diff-filter=uxdb --diff-merges=remerge'
