@@ -42,11 +42,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history: the secrets scan at the bottom of this job reads
-          # `git log -p`, so a shallow clone would scan a suffix of history
-          # and call the rest clean. A git history read inherits the
-          # checkout's depth.
-          fetch-depth: 0
           # Nothing pushes; later steps must not inherit a stored token.
           persist-credentials: false
 
@@ -89,40 +84,17 @@ jobs:
       # instead of hanging.
 
       - name: Check every shell file
-        # Recurse so adding a nested test helper cannot silently escape lint.
+        # Recurse so adding a nested test helper cannot silently escape lint,
+        # and read the shared scripts by the same rule.
         run: |
-          find tests -type f -name '*.sh' -exec shellcheck {} +
+          find tests .github/scripts -type f -name '*.sh' -exec shellcheck {} +
 
-      - name: Download gitleaks and verify its digest
-        # Last in the job: the three checks above refuse in seconds, while
-        # this downloads a binary and walks the full history, so a head that
-        # is stale, mis-scoped or badly linted never pays for the scan.
-        # Checksum-verified rather than piped from an install script: `curl |
-        # bash` would make this job trust whatever that URL serves at run
-        # time. The digest is from the release's own checksums file, and a
-        # version bump moves it together with secrets.yml's copy of this
-        # step.
-        run: |
-          curl --connect-timeout 5 --max-time 60 --retry 3 --retry-all-errors --retry-delay 5 -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
-          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks_8.30.1_linux_x64.tar.gz' | sha256sum -c -
-          tar xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks
-
-      - name: Scan the tree and the history for secrets
-        # Bare on purpose: this step's exit status IS the gate, so no
-        # condition, fallback or error-swallowing suffix belongs here. The
-        # log is public: --verbose names findings, --redact masks them.
-        # No --config and no .gitleaks.toml: the default ruleset ran clean
-        # against this repository's full history, so an allowlist here would
-        # be a way to silence a future finding nobody reviewed.
-        # In this job rather than a new one: `shellcheck` is folded into the
-        # required `aggregate` and runs on every pull request and every
-        # push to main, both unfiltered, so the scan gates exactly the commits
-        # a standalone scan job would — a new job reaches the ruleset only
-        # once it is added to the aggregate's `needs`, and actionlint is
-        # disqualified as the host because its push trigger is paths:-filtered
-        # to workflow files, so a secret committed to run.py on main would
-        # never start the scan.
-        run: ./gitleaks detect --verbose --redact
+  secrets:
+    # The gitleaks scan, defined once in secrets.yml. Calling it keeps the
+    # scan inside this workflow's required aggregate while that file's own
+    # schedule re-answers the history; a standalone workflow's job would be
+    # no required context and could go red without blocking a merge.
+    uses: ./.github/workflows/secrets.yml # zizmor: ignore[self-repository] actionlint refuses the $/ spelling
 
   plan:
     runs-on: ubuntu-latest
@@ -289,7 +261,7 @@ jobs:
     # cancelled ancestor. This tree has no classification skips, so every
     # skipped, failed, cancelled or missing leg must fold red.
     # actionlint reports independently; needs can only name this workflow's legs.
-    needs: [plan, suites, report, shellcheck, size-baseline]
+    needs: [plan, suites, report, shellcheck, secrets, size-baseline]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
