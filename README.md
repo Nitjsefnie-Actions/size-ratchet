@@ -51,7 +51,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch)
-        uses: Nitjsefnie-Actions/size-ratchet@dcd7bb5427ac951d7270bf493c2c12e749432d72 # v3.1.2
+        uses: Nitjsefnie-Actions/size-ratchet@84009b67a653bd057115a0318b61da7b937d810a # v4.0.3
         with:
           ceilings: ''
           overrides: ''
@@ -64,11 +64,15 @@ jobs:
           stale: 'warn'
           require-tight: 'false'
           push-key: ${{ secrets.MASTER_PUSH_DEPLOY_KEY }}
-          tree-budgets: ''
+          tree-budgets: 'tests/'
 ```
 
-The `with:` block shows **every input with its default**. Omit it and a
-bare `uses:` step behaves the same on these events. The gate's steps run
+The `with:` block shows **every input**, at its default except
+`tree-budgets`, which names `tests/`: every repository that adopts the
+block budgets its test tree, and this one does too. Set that line to the
+folder to bound, or to `''` (the input's default) to budget no tree.
+Omit the block and a bare `uses:` step behaves the same on these events,
+budgeting no tree. The gate's steps run
 only on a pull request or a push to the repository's default branch,
 resolved from the event at run time; on any other event the block runs
 on — a push to `main` or `master` where that is not the default branch,
