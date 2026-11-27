@@ -20,7 +20,8 @@
       ],
       "tests/test_cli.py": [
         29.76,
-        38.3
+        38.3,
+        21.16
       ],
       "tests/test_gate.py": [
         1.43
