@@ -3,7 +3,5 @@
     "tests/": 5047
   },
   "schema_version": 1,
-  "baseline": {
-    "tests/gate_base_freshness.py": 627
-  }
+  "baseline": {}
 }

@@ -51,14 +51,6 @@
     2510,
     12304
   ],
-  "tests/commit_scopes.py": [
-    6933,
-    12482
-  ],
-  "tests/gate_base_freshness.py": [
-    11577,
-    21217
-  ],
   "tests/run.sh": [
     18,
     79

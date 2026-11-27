@@ -47,36 +47,10 @@ jobs:
           # Nothing pushes; later steps must not inherit a stored token.
           persist-credentials: false
 
-      - name: Require this head to carry main's gate-defining commits
-        # The `require-ci-aggregate` ruleset sets
-        # strict_required_status_checks_policy to false, so a green head
-        # vouches only for the tree this run checked
-        # out: a commit that lands on main touching a file a required check
-        # reads is never applied to a pull request before it merges, and the
-        # merge then publishes a tree no green run ever saw. This is the only
-        # check that compares the two.
-        #
-        # In a job the required `aggregate` already folds, because a new job
-        # reaches the ruleset only once it is added to the aggregate's `needs`,
-        # and a `paths:` filter on a workflow whose job the aggregate folds
-        # would stop this reporting at all and block every pull request
-        # instead.
-        #
-        # Before the lint step: work done against a base main has already moved
-        # on from is work whose verdict does not carry.
-        if: github.event_name == 'pull_request'
-        run: python3 tests/gate_base_freshness.py
-
-      - name: Refuse a commit whose scope names a workflow outside the ci type
-        # CONTRIBUTING.md's scope table allows a workflow's name as a scope
-        # only with type `ci`, and prose no gate reads is a convention. In this
-        # job rather than a new one: a new job reaches the ruleset only once it
-        # is added to the required `aggregate`'s `needs`, and a job the
-        # aggregate already folds is where the freshness step went for the
-        # same reason.
-        # After the freshness step: both compare the head against freshly
-        # fetched main, and both must read the rebased head.
-        run: python3 tests/commit_scopes.py
+      # In a job the required `aggregate` already folds: a green head must carry
+      # main's gate-defining commits, and a workflow-name scope takes the ci type.
+      - uses: Nitjsefnie-Actions/pr-gate/freshness@eb4991d7f92be7d2e55bb8b47aaaa24f09e98ca2 # v3.3.0
+      - uses: Nitjsefnie-Actions/pr-gate/commit-scopes@eb4991d7f92be7d2e55bb8b47aaaa24f09e98ca2 # v3.3.0
 
       # ShellCheck ships with the image (0.9.0-1 on ubuntu-24.04, which
       # ubuntu-latest currently maps to, per the runner-images docs:
