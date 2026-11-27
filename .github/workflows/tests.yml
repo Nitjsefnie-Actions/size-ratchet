@@ -49,8 +49,9 @@ jobs:
 
       # In a job the required `aggregate` already folds: a green head must carry
       # main's gate-defining commits, and a workflow-name scope takes the ci type.
-      - uses: Nitjsefnie-Actions/pr-gate/freshness@eb4991d7f92be7d2e55bb8b47aaaa24f09e98ca2 # v3.3.0
-      - uses: Nitjsefnie-Actions/pr-gate/commit-scopes@eb4991d7f92be7d2e55bb8b47aaaa24f09e98ca2 # v3.3.0
+      - if: github.event_name == 'pull_request' || github.ref_name == github.event.repository.default_branch
+        uses: Nitjsefnie-Actions/freshness@5edc2a45ff894cf49c5cc8d293bbae0af33507d4 # v1.0.0
+      - uses: Nitjsefnie-Actions/commit-scopes@645ca8f43b00199cebeed7a5d305b4224e902a60 # v1.0.0
 
       # ShellCheck ships with the image (0.9.0-1 on ubuntu-24.04, which
       # ubuntu-latest currently maps to, per the runner-images docs:
