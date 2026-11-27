@@ -27,7 +27,8 @@
         1.43
       ],
       "tests/test_gitleaks_scan.py": [
-        3.21
+        3.21,
+        6.02
       ],
       "tests/test_install_block.py": [
         13.73,
@@ -58,7 +59,8 @@
       ],
       "tests/test_trees.py": [
         10.11,
-        13.16
+        13.16,
+        18.86
       ],
       "tests/test_trees_check.py": [
         45.75,
