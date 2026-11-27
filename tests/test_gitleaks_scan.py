@@ -24,10 +24,13 @@ exit "${STUB_EXIT:-0}"
 
 BASE_CONFIG = '[extend]\nuseDefault = true\n# base\n'
 WEAKER = '[extend]\nuseDefault = false\n# head\n'
-DEFAULT = '[extend]\nuseDefault = true\n'
+# The default config's shape: name-only allowlists (global, a rule's) and one also needing a line.
+GLOBAL_PATHS, RULE_PATHS = "paths = [\n'''lock''',\n]\n", "[[rules.allowlists]]\npaths = [\n'''README''',\n]\n"
+RULES = ("[allowlist]\n" + GLOBAL_PATHS + "regexes = [\n'''^true$''',\n]\n\n[[rules]]\n" + RULE_PATHS
+         + "\n[[rules]]\n[[rules.allowlists]]\ncondition = 'AND'\npaths = [\n'''kept''',\n]\n")
+DEFAULT = RULES.replace(GLOBAL_PATHS, '').replace(RULE_PATHS, '')
 # The fixture commits are throwaway; they carry no attribution worth keeping.
-IDENTITY = {'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.com',
-            'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.com'}
+IDENTITY = {'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.com', 'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.com'}
 
 
 class Scan(unittest.TestCase):
@@ -36,48 +39,39 @@ class Scan(unittest.TestCase):
         self.origin = self.root / 'origin.git'
         self.work = self.root / 'work'
         self.temp = self.root / 'temp'
-        self.args = self.root / 'args'
-        self.config = self.root / 'config'
-        self.ignore = self.root / 'ignore'
-        self.attributes = self.root / 'attributes'
+        self.args, self.config, self.ignore, self.attributes = (
+            self.root / name for name in ('args', 'config', 'ignore', 'attributes'))
         self.temp.mkdir()
         self.git(self.root, 'init', '-q', '--bare', str(self.origin))
         self.git(self.root, 'init', '-q', str(self.work))
         self.git(self.work, 'remote', 'add', 'origin', self.origin.as_uri())
         (self.work / 'gitleaks').write_text(STUB)
         (self.work / 'gitleaks').chmod(0o755)
+        (self.work / 'gitleaks-default.toml').write_text(RULES)
 
     def git(self, cwd, *arguments):
-        return subprocess.run(['git', '-C', str(cwd), *arguments], check=True,
-                              capture_output=True, text=True,
+        return subprocess.run(['git', '-C', str(cwd), *arguments], check=True, capture_output=True, text=True,
                               env={**os.environ, **IDENTITY}).stdout
 
     def publish(self, files):
         """Commit `files` in the work tree and push them as the base branch."""
         for name, text in files.items():
             path = self.work / name
-            if text is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_text(text)
+            _ = path.unlink(missing_ok=True) if text is None else path.write_text(text)
         self.git(self.work, 'add', '-A')
         self.git(self.work, 'commit', '-qm', 'change')
         self.git(self.work, 'push', '-q', 'origin', 'HEAD:refs/heads/main')
 
     def run_scan(self, base='main', stub_exit=None):
-        env = {**os.environ, 'RUNNER_TEMP': str(self.temp),
-               'STUB_ARGS': str(self.args), 'STUB_CONFIG': str(self.config),
-               'STUB_IGNORE': str(self.ignore),
+        env = {**os.environ, 'RUNNER_TEMP': str(self.temp), 'STUB_ARGS': str(self.args),
+               'STUB_CONFIG': str(self.config), 'STUB_IGNORE': str(self.ignore),
                'STUB_ATTRIBUTES': str(self.attributes)}
         env.pop('STUB_EXIT', None)
-        if stub_exit is not None:
-            env['STUB_EXIT'] = str(stub_exit)
-        return subprocess.run([SCRIPT, base], cwd=self.work, env=env,
-                              capture_output=True, text=True)
+        env.update({} if stub_exit is None else {'STUB_EXIT': str(stub_exit)})
+        return subprocess.run([SCRIPT, base], cwd=self.work, env=env, capture_output=True, text=True)
 
     def seen(self):
-        arguments = self.args.read_text().splitlines()
-        return arguments, self.args, self.config.read_text()
+        return self.args.read_text().splitlines(), self.args, self.config.read_text()
 
     def test_the_base_branch_config_is_used_even_when_the_tree_carries_another(self):
         self.publish({'.gitleaks.toml': BASE_CONFIG, 'a.py': 'a = 1\n'})
@@ -85,7 +79,7 @@ class Scan(unittest.TestCase):
         done = self.run_scan()
         self.assertEqual(done.returncode, 0, done.stderr)
         arguments, _, config = self.seen()
-        self.assertEqual(config, BASE_CONFIG)
+        self.assertEqual(config, BASE_CONFIG.replace('useDefault = true', f'path = "{self.temp}/gitleaks-default.toml"'))
         self.assertIn('--config', arguments)
         self.assertLessEqual({'--ignore-gitleaks-allow', '--log-opts=--full-history --all --diff-filter=uxdb --diff-merges=first-parent'}, set(arguments))
         chosen = pathlib.Path(arguments[arguments.index('--config') + 1])
@@ -109,8 +103,7 @@ class Scan(unittest.TestCase):
     def test_a_symlinked_tree_ignore_file_is_replaced_not_written_through(self):
         for base_ignore in ('# base-ignore\n', None):
             with self.subTest(base_ignore=base_ignore):
-                self.publish({'.gitleaks.toml': BASE_CONFIG, '.gitleaksignore': base_ignore,
-                              'sentinel': 'kept\n'})
+                self.publish({'.gitleaks.toml': BASE_CONFIG, '.gitleaksignore': base_ignore, 'sentinel': 'kept\n'})
                 (self.work / '.gitleaksignore').unlink(missing_ok=True)
                 (self.work / '.gitleaksignore').symlink_to('sentinel')
                 self.args.unlink(missing_ok=True)
@@ -126,12 +119,19 @@ class Scan(unittest.TestCase):
 
     def test_an_absent_unusable_or_empty_base_config_falls_back_to_the_default(self):
         self.publish({'.gitleaks.toml': BASE_CONFIG, 'a.py': 'a = 1\n'})
-        for base_files in ({'.gitleaks.toml': None}, {'.gitleaks.toml': WEAKER},
-                           {'.gitleaks.toml': ''}):
+        for base_files in ({'.gitleaks.toml': None}, {'.gitleaks.toml': WEAKER}, {'.gitleaks.toml': ''}):
             self.publish({'a.py': 'a = 1\n', **base_files})
             self.assertEqual(self.run_scan().returncode, 0)
             _, _, config = self.seen()
             self.assertEqual(config, DEFAULT)
+
+    def test_default_rules_without_one_global_paths_array_refuse(self):
+        self.publish({'a.py': 'a = 1\n'})
+        for rules in (DEFAULT, RULES.replace('[allowlist]', '[[allowlists]]'), RULES + '[allowlist]\n'):
+            (self.work / 'gitleaks-default.toml').write_text(rules)
+            done = self.run_scan()
+            self.assertEqual((done.returncode, self.args.exists(), 'single global [allowlist] paths' in done.stderr),
+                             (1, False, True), done.stderr)
 
     def test_an_unknown_base_ref_refuses_before_gitleaks_runs(self):
         self.publish({'a.py': 'a = 1\n'})
