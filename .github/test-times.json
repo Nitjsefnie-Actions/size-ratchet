@@ -26,10 +26,6 @@
       "tests/test_gate.py": [
         1.43
       ],
-      "tests/test_gitleaks_scan.py": [
-        3.21,
-        6.02
-      ],
       "tests/test_install_block.py": [
         13.73,
         22.78,
@@ -92,10 +88,6 @@
       ],
       "tests/test_gate.py": [
         0.21
-      ],
-      "tests/test_gitleaks_scan.py": [
-        1.21,
-        3.49
       ],
       "tests/test_install_block.py": [
         5.83,
