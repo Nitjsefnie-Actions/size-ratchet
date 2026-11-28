@@ -71,7 +71,8 @@
       ],
       "tests/test_trees_push.py": [
         25.35,
-        17.85
+        17.85,
+        13.33
       ]
     },
     "ubuntu-latest-py3.15": {
