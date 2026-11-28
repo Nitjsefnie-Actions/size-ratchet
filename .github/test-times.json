@@ -45,7 +45,8 @@
       ],
       "tests/test_push.py": [
         13.73,
-        19.25
+        19.25,
+        8.66
       ],
       "tests/test_readme_pin.py": [
         0.01
